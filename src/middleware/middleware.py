@@ -1,8 +1,5 @@
 from werkzeug.wrappers import Request, Response
-from dotenv import dotenv_values
 import os
-
-config = dotenv_values(".env")
 
 
 class Middleware:

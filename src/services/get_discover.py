@@ -1,6 +1,5 @@
 from ..variables import PREF_TO_INDEX
 from bson.objectid import ObjectId
-from bson import json_util
 import numpy as np
 from cvxpy import *
 from app import db
