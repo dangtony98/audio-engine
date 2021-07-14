@@ -3,7 +3,7 @@ from bson.objectid import ObjectId
 from bson import json_util
 import numpy as np
 from cvxpy import *
-from index import db
+from app import db
 
 
 def get_user_x(user_id):

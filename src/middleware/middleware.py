@@ -1,5 +1,6 @@
 from werkzeug.wrappers import Request, Response
 from dotenv import dotenv_values
+import os
 
 config = dotenv_values(".env")
 
@@ -7,7 +8,7 @@ config = dotenv_values(".env")
 class Middleware:
     def __init__(self, app):
         self.app = app
-        self.API_KEY = config["API_KEY"]
+        self.API_KEY = os.environ.get("API_KEY")
 
     def __call__(self, environ, start_response):
         try:

@@ -3,7 +3,7 @@ from bson.objectid import ObjectId
 import numpy as np
 import cvxpy as cp
 from cvxpy import *
-from index import db
+from app import db
 from pymongo import UpdateOne
 
 

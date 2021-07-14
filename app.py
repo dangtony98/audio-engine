@@ -1,13 +1,21 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from pymongo import MongoClient
 from dotenv import dotenv_values
 import json
 
+import os
+
 config = dotenv_values(".env")
 app = Flask(__name__)
-client = MongoClient(config["MONGO_URI"], tls=True, tlsAllowInvalidCertificates=True)
+client = MongoClient(
+    os.environ.get("MONGO_URI"), tls=True, tlsAllowInvalidCertificates=True
+)
 
 db = client.audio
+
+# testing = os.environ.get("MONGO_URI")
+# print("testing")
+# print(testing)
 
 # import modules
 from src.services.create_audio_xs import *
