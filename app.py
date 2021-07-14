@@ -40,7 +40,7 @@ def create_audio_xs():
 def get_discover(user_id):
     """
     return the "discover" feed for user with id [user_id]
-    update the "discover" feed for user with id [user_id] in DB
+    update the "discover" feed for user with id [user_id]
     """
 
     # get feed
