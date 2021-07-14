@@ -5,9 +5,11 @@ name = "pypi"
 
 [packages]
 flask = "*"
-python-decouple = "*"
-pymongo = {version = "*", extras = ["tls"]}
+pymongo = {version = "*", extras = ["srv"]}
 flask-pymongo = "*"
+python-dotenv = "*"
+cvxpy = "*"
+numpy = "*"
 
 [requires]
 python_version = "3.9"
