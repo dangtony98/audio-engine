@@ -10,9 +10,11 @@ class Middleware:
     def __call__(self, environ, start_response):
         try:
             # case: try authentication by API key
+            print("A")
             request = Request(environ)
             if request.headers["X-Api-Key"] == self.API_KEY:
                 # case: correct API_KEY
+                print("B")
                 return self.app(environ, start_response)
         except Exception:
             # case: failed authentication by API key

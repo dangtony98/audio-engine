@@ -17,6 +17,11 @@ from src.middleware.middleware import *
 app.wsgi_app = Middleware(app.wsgi_app)
 
 
+@app.route("/")
+def hello_world():
+    return "Hello world"
+
+
 @app.route("/create-audio-xs/", methods=["POST"])
 def create_audio_xs():
     """
