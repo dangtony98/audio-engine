@@ -1,4 +1,4 @@
-from flask import Flask, json, jsonify
+from flask import Flask, jsonify, request
 from pymongo import MongoClient
 from dotenv import dotenv_values
 import json
@@ -14,19 +14,10 @@ from src.services.create_audio_xs import *
 from src.services.get_discover import *
 from src.middleware.middleware import *
 
-# @app.route("/create-embedding/<string:audioId>")
-# def create_audio_x(audioId):
-#     # trains a single embedding for audio with id [audioId]
-
-#     (theta, y) = get_theta_y(audioId)
-#     x = get_x(theta, y)
-
-#     return jsonify(x.tolist())
-
 app.wsgi_app = Middleware(app.wsgi_app)
 
 
-@app.route("/create-audio-xs/")
+@app.route("/create-audio-xs/", methods=["POST"])
 def create_audio_xs():
     """
     train all audio and user embeddings where ratings exist
@@ -45,7 +36,7 @@ def create_audio_xs():
     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
 
-@app.route("/get_discover/<string:user_id>")
+@app.route("/get_discover/<string:user_id>", methods=["GET"])
 def get_discover(user_id):
     """
     return the "discover" feed for user with id [user_id]
