@@ -10,23 +10,23 @@ client = MongoClient(
 
 db = client.audio
 
-from src.services.create_audio_xs import *
+from src.services.train_xs import *
 from src.services.get_discover import *
 from src.middleware.middleware import *
 
 app.wsgi_app = Middleware(app.wsgi_app)
 
 
-@app.route("/")
-def hello_world():
-    return "Hello world"
-
-
-@app.route("/create-audio-xs/", methods=["POST"])
-def create_audio_xs():
+@app.route("/train-xs", methods=["POST"])
+def train_xs():
     """
-    train all audio and user embeddings where ratings exist
-    update embeddings in DB
+    train all audio and user embeddings where ratings exist by non-zero users
+    goal: train accurate latent audio embeddings
+
+    TO-DO 1: disregard ratings where user embeddings are the zero vector to obtain
+    precise audio embeddings
+
+    TO-DO 2: add eval
     """
 
     # train
@@ -45,7 +45,7 @@ def create_audio_xs():
 def get_discover(user_id):
     """
     return the "discover" feed for user with id [user_id]
-    update the "discover" feed for user with id [user_id]
+    update the "discover" feed for user with id [user_id] in DB
     """
 
     # get feed

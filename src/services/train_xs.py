@@ -45,7 +45,7 @@ def get_P(ps):
     for user in users:
         if str(user["_id"]) not in p_dict:
             # case: user is not in p_dict
-            p = preprocess(user["preferences"])
+            p = user["initEmbedding"]
             p_dict[str(user["_id"])] = {"p": p, "index": index}
             index += 1
 
@@ -81,6 +81,7 @@ def solve_Q(P, qs, rs):
     Q = create_P_Q(qs)
 
     constraints = []
+
     obj = cp.Minimize(sum_squares(diag(P @ Q.T) - rs) + 0.001 * sum_squares(Q))
     prob = cp.Problem(obj, constraints)
     prob.solve()

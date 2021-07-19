@@ -17,10 +17,18 @@ def get_content_pool(user_id):
     Returns a content pool of ids to consider and their repective embeddings
     """
 
+    # get ids of seen ledges
     seen_ids = [l["audio"] for l in db.listens.find({"user": ObjectId(user_id)})]
 
-    unseen_pool = list(db.audios.find({"_id": {"$nin": seen_ids}}))
-    seen_pool = list(db.audios.find({"_id": {"$in": seen_ids}}))
+    # get ids of blocked users
+    blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
+    # get ids of blocked content
+    blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}})]
+
+    unseen_pool = list(
+        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}})
+    )
+    seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
 
     unseen_pool_xs = [a["embedding"] for a in unseen_pool]
     seen_pool_xs = [a["embedding"] for a in seen_pool]
@@ -43,20 +51,10 @@ def get_sorted_content(user_x, content_pool, content_pool_xs):
     return list(np.array(content_pool)[sort_idx[::-1]])
 
 
-def clean_output(pool):
-    """
-    clean [pool] to be compatible with Flask's jsonify
-    """
-
-    def clean(item):
-        item["_id"] = str(item["_id"])
-        item["user"] = str(item["user"])
-        return item
-
-    return [clean(item) for item in pool]
-
-
 def get_feed(user_id):
+    """
+    gets the discovery feed for user with id [user_id]
+    """
 
     user_x = get_user_x(user_id)
     seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs = get_content_pool(user_id)
@@ -81,3 +79,16 @@ def update_feed(user_id, feed_name, feed):
     new_values = {"$set": values}
 
     db.feeds.update_one(filter, new_values, upsert=True)
+
+
+def clean_output(pool):
+    """
+    clean [pool] to be compatible with Flask's jsonify
+    """
+
+    def clean(item):
+        item["_id"] = str(item["_id"])
+        item["user"] = str(item["user"])
+        return item
+
+    return [clean(item) for item in pool]
