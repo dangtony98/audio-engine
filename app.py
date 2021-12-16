@@ -1,3 +1,4 @@
+from logging import error
 from flask import Flask, jsonify
 from pymongo import MongoClient
 import json
@@ -12,6 +13,7 @@ db = client.audio
 
 from src.services.train_xs import *
 from src.services.get_discover import *
+from src.services.transcribe import *
 from src.middleware.middleware import *
 
 app.wsgi_app = Middleware(app.wsgi_app)
@@ -56,3 +58,17 @@ def get_discover(user_id):
 
     # return cleaned feed
     return jsonify(clean_output(feed))
+
+
+@app.route("/transcribe/<string:audio_id>", methods=["POST"])
+def transcribe(audio_id):
+    """
+    insert the audio text transcription into DB
+    """
+    
+    sound = get_audio(audio_id)
+
+    # Update/Insert the transcription into DB
+    transcribe_audio(sound, audio_id)
+
+    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
