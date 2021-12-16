@@ -42,8 +42,8 @@ def transcribe_audio(sound, audio_id):
                 print("Could not request results from Google Speech Recognition service; {0}".format(e))
             os.remove(audio_id + str(i) + ".wav")
 
-    db.transcriptions.update_one(
-        {"audio_id": ObjectId(audio_id)}, 
-        {"$set": {"text": text}},
+    db.audios.update_one(
+        {"_id": ObjectId(audio_id)}, 
+        {"$set": {"transcription": text}},
         upsert=True
     )
