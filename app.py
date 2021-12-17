@@ -60,15 +60,15 @@ def get_discover(user_id):
     return jsonify(clean_output(feed))
 
 
-@app.route("/transcribe/<string:audio_id>", methods=["POST"])
-def transcribe(audio_id):
-    """
-    insert the audio text transcription into DB
-    """
+# @app.route("/transcribe/<string:audio_id>", methods=["POST"])
+# def transcribe(audio_id):
+#     """
+#     insert the audio text transcription into DB
+#     """
     
-    sound = get_audio(audio_id)
+#     sound = get_audio(audio_id)
 
-    # Update/Insert the transcription into DB
-    transcribe_audio(sound, audio_id)
+#     # Update/Insert the transcription into DB
+#     transcribe_audio(sound, audio_id)
 
-    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
+#     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
