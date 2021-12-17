@@ -26,7 +26,7 @@ def train_xs():
     goal: train accurate latent audio embeddings
 
     TO-DO 1: disregard ratings where user embeddings are the zero vector to obtain
-    precise audio embedding
+    precise audio embeddings
 
     TO-DO 2: add eval
     """
