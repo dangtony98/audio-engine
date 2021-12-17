@@ -3,7 +3,7 @@ from urllib.request import Request, urlopen
 from bson.objectid import ObjectId
 from app import db
 import os
-import speech_recognition as sr
+# import speech_recognition as sr
 
 MAX_API_LENGTH_MS = 30000
 
