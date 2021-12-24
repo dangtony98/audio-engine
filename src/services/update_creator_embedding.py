@@ -1,11 +1,8 @@
 from app import db
-from datetime import date
 import numpy as np
 from bson.objectid import ObjectId
 import pickle    
 import os 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.datasets import make_classification
 
 NUMBER_OF_CREATORS_TO_RECOMMEND = 20
 INVERSE_ORDER = -1

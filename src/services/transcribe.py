@@ -4,9 +4,9 @@ from bson.objectid import ObjectId
 from app import db
 import os
 import speech_recognition as sr
-from googletrans import Translator
+# from googletrans import Translator
 # import googletrans
-from flask import Flask, render_template, url_for, request
+# from flask import Flask, render_template, url_for, request
 # from textblob import TextBlob
 
 MAX_API_LENGTH_MS = 30000
