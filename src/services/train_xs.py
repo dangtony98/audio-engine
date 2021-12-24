@@ -7,7 +7,7 @@ from app import db
 from pymongo import UpdateOne
 
 
-def get_rs_ps_qs():
+def get_ratings_userids_audioids():
     """
     return [rs], [ps], [qs]:
     - [rs] is a list of ratings
@@ -16,10 +16,11 @@ def get_rs_ps_qs():
     """
     targets = list(db.ratings.find({}))
 
-    rs = np.array(list(map(lambda x: x["rating"], targets)))
-    ps = list(map(lambda x: str(x["user"]), targets))
-    qs = list(map(lambda x: str(x["audio"]), targets))
-    return rs, ps, qs
+    ratings = np.array(list(map(lambda x: round(x["rating"], 2), targets)))
+    userids = list(map(lambda x: str(x["user"]), targets))
+    audioids = list(map(lambda x: str(x["audio"]), targets))
+
+    return ratings, userids, audioids
 
 
 def preprocess(preferences):
@@ -32,28 +33,27 @@ def preprocess(preferences):
     return theta
 
 
-def get_P(ps):
+def get_users_P(userIds):
     """
     create matrix P by getting [ps] preferences and creating embeddings
     """
-    p_dict = {}  # stores map [user id]: [initial embedding]
+    users_dict = {}  # stores map [user id]: [initial embedding]
 
-    ps_uniq = list(map(lambda x: ObjectId(x), set(ps)))
-    users = list(db.users.find({"_id": {"$in": ps_uniq}}))
+    users_uniq = list(map(lambda x: ObjectId(x), set(userIds)))
+    users = list(db.users.find({"_id": {"$in": users_uniq}}))
 
     index = 0
     for user in users:
-        if str(user["_id"]) not in p_dict:
+        if str(user["_id"]) not in users_dict:
             # case: user is not in p_dict
-            p = user["initEmbedding"]
-            p_dict[str(user["_id"])] = {"p": p, "index": index}
+            users_dict[str(user["_id"])] = {"p": user["initEmbedding"], "index": index}
             index += 1
 
-    P = np.array([p_dict[pid]["p"] for pid in ps])
+    P = np.array([users_dict[pid]["p"] for pid in userIds])
     return P
 
 
-def create_P_Q(psqs):
+def create_users_P_audios_Q(psqs):
     """
     creates a matrix of variables for optimization
     """
@@ -73,45 +73,45 @@ def create_P_Q(psqs):
     return matrix
 
 
-def solve_Q(P, qs, rs):
+def solve_audios_Q(users_P, audioIds, ratings):
     """
     solve for qs embeddings (audio)
     """
 
-    Q = create_P_Q(qs)
+    audios_Q = create_users_P_audios_Q(audioIds)
 
     constraints = []
 
-    obj = cp.Minimize(sum_squares(diag(P @ Q.T) - rs) + 0.001 * sum_squares(Q))
+    obj = cp.Minimize(sum_squares(diag(users_P @ audios_Q.T) - ratings) + 0.001 * sum_squares(audios_Q))
     prob = cp.Problem(obj, constraints)
     prob.solve()
-    return P, Q.value, rs
+    return users_P, audios_Q.value, ratings
 
 
-def solve_P(Q, ps, rs):
+def solve_users_P(audios_Q, userIds, ratings):
     """
     solves for ps embeddings (user)
     """
-    P = create_P_Q(ps)
+    users_P = create_users_P_audios_Q(userIds)
 
     constraints = []
-    obj = cp.Minimize(sum_squares(diag(P @ Q.T) - rs) + 0.001 * sum_squares(P))
+    obj = cp.Minimize(sum_squares(diag(users_P @ audios_Q.T) - ratings) + 0.001 * sum_squares(users_P))
     prob = cp.Problem(obj, constraints)
     prob.solve()
-    return P.value, Q, rs
+    return users_P.value, audios_Q, ratings
 
 
-def solve_Q_P(qs, ps, rs, loops):
+def solve_Q_P(audioIds, userIds, ratings, loops):
     """
     solve for [qs] and [ps] embeddings given [rs]
     """
-    P = get_P(ps)
-    Q = None
+    users_P = get_users_P(userIds)
+    audios_Q = None
     for _ in range(0, loops):
-        P, Q, rs = solve_Q(P, qs, rs)
-        P, Q, rs = solve_P(Q, ps, rs)
+        users_P, audios_Q, ratings = solve_audios_Q(users_P, audioIds, ratings)
+        users_P, audios_Q, ratings = solve_users_P(audios_Q, userIds, ratings)
 
-    return P, Q
+    return users_P, audios_Q
 
 
 def extract_embeddings(psqs, PQ):
@@ -128,6 +128,7 @@ def extract_embeddings(psqs, PQ):
         return k
 
     x = [create_dict(key) for key in dict]
+    print(x)
     return x
 
 

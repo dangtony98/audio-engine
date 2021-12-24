@@ -4,6 +4,10 @@ from bson.objectid import ObjectId
 from app import db
 import os
 import speech_recognition as sr
+from googletrans import Translator
+# import googletrans
+from flask import Flask, render_template, url_for, request
+# from textblob import TextBlob
 
 MAX_API_LENGTH_MS = 30000
 
@@ -41,9 +45,54 @@ def transcribe_audio(sound, audio_id):
             except sr.RequestError as e:
                 print("Could not request results from Google Speech Recognition service; {0}".format(e))
             os.remove(audio_id + str(i) + ".wav")
-
     db.audios.update_one(
         {"_id": ObjectId(audio_id)}, 
         {"$set": {"transcription": text}},
         upsert=True
     )
+
+    # TRYING LANGUAGE DETECTION, NEED TO CLEAN UP 
+
+    # # detect_language(text, audio_id)
+    # translator = Translator()
+    # print('A')
+    # # print(translator.detect(text))
+    # print(translator.detect('hello').lang)
+    # print('A')
+    # blobline = TextBlob('hello') 
+    # detected_language = blobline.detect_language() 
+
+    # db.audios.update_one(
+    #     {"_id": ObjectId(audio_id)}, 
+    #     {"$set": {"language": str(detected_language)}},
+    #     upsert=True
+    # )
+    # import requests
+    # import urllib.parse
+    # url = "https://google-translate1.p.rapidapi.com/language/translate/v2/detect"
+
+    # payload = "q=English%20is%20hard%2C%20but%20detectably%20so"
+    # headers = {
+    #     'content-type': "application/x-www-form-urlencoded",
+    #     'accept-encoding': "application/gzip",
+    #     'x-rapidapi-host': "google-translate1.p.rapidapi.com",
+    #     'x-rapidapi-key': "8cc0863199msh3c9519925606cf2p12df3cjsn0da250e85d03"
+    #     }
+
+    # response = requests.request("POST", url, data="q=" + urllib.parse.quote('hello'), headers=headers)
+
+    # print(response.json()["data"]["detections"][0][0]["language"])
+
+
+# def detect_language(text, audio_id):
+#     translator = Translator()
+#     print('A')
+#     # print(translator.detect(text))
+#     language = translator.detect('hello').lang
+#     print('A')
+
+#     db.audios.update_one(
+#         {"_id": ObjectId(audio_id)}, 
+#         {"$set": {"language": str(language)}},
+#         upsert=True
+#     )
