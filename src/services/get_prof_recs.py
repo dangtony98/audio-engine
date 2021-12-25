@@ -46,6 +46,10 @@ def get_creators(all_listeners, all_users):
     """
     creator_dict = ("_id", "creatorEmbedding")
     creators = [list(dict_filter(user, creator_dict).values()) for user in all_users]
+    # [print(creator) for creator in creators if len(creator)==2]
+    creators = [creator[0:2] for creator in creators if len(creator)==2]
+    print(creators)
+    print("A")
     follows_dict = ("from", "to")
     follows = [list(dict_filter(follow, follows_dict).values()) for follow in db.follows.find()]
     followers_data_full = []
@@ -67,13 +71,12 @@ def get_creators(all_listeners, all_users):
 def get_dataset(user_id):
     # listener_list is the specific user for which we are getting recommendations represented as a list
     listener_list, all_listeners, all_users = get_listeners(user_id)
-
     # Get all the creators, the data from their transcripts, and the data of their followers
     creators = get_creators(all_listeners, all_users)
 
-    # Create the pairs of our listener with all possible creators
-    user_ids = [user["_id"] for user in all_users]
-    dataset = [[listener_list[0][:1], creator] for creator in user_ids if listener_list[0][:1] != creator]
+    # Create the pairs of our listener with all possible creators, only people with creatorEmbeddings can be creators
+    creator_ids = [creator[0] for creator in creators]
+    dataset = [[listener_list[0][:1], creator] for creator in creator_ids if listener_list[0][:1] != creator]
     creator_ids = [id[1] for id in dataset]
 
     # Generate the training dataset
