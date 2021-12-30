@@ -18,6 +18,7 @@ from src.services.transcribe import *
 from src.services.get_prof_recs import *
 from src.services.retrain_prof_recommender import *
 from src.services.update_creator_embedding import *
+from src.services.search import *
 from src.middleware.middleware import *
 
 app.wsgi_app = Middleware(app.wsgi_app)
@@ -109,6 +110,15 @@ def get_prof_recs(user_id):
     creator_recs = get_creator_recs(creator_ids, final_dataset_X)
  
     return jsonify(creator_recs), 200, {"ContentType": "application/json"}
+
+
+@app.route("/search/<string:query>", methods=["GET"])
+def search(query):
+    """
+    Get search suggestions based on a user's query
+    """
+    search_results = get_search_audio_resuls(query)
+    return jsonify(search_results), 200, {"ContentType": "application/json"}
 
 
 if __name__ == '__main__': 

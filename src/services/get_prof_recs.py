@@ -48,8 +48,7 @@ def get_creators(all_listeners, all_users):
     creators = [list(dict_filter(user, creator_dict).values()) for user in all_users]
     # [print(creator) for creator in creators if len(creator)==2]
     creators = [creator[0:2] for creator in creators if len(creator)==2]
-    print(creators)
-    print("A")
+
     follows_dict = ("from", "to")
     follows = [list(dict_filter(follow, follows_dict).values()) for follow in db.follows.find()]
     followers_data_full = []
@@ -126,4 +125,7 @@ def get_creator_recs(creator_ids, final_dataset_X):
     creator_recs = list(db.users.find({"_id": {"$in": list(set(result))}}))
     creator_recs = [clean_recs(item) for item in creator_recs]
 
+    # Order them in the right order
+    order_dict = {id: index for index, id in enumerate(result)}
+    creator_recs = sorted(creator_recs, key=lambda x: order_dict[ObjectId(x["_id"])])
     return creator_recs
