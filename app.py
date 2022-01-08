@@ -6,9 +6,11 @@ import json
 import os
 
 app = Flask(__name__)
-client = MongoClient(
-    os.environ.get("MONGO_URI"), tls=True, tlsAllowInvalidCertificates=True
-)
+if os.environ.get("ENV") == "production":
+    MONGO_URI = os.environ.get("MONGO_PRODUCTION_URI")
+else:
+    MONGO_URI = os.environ.get("MONGO_DEVELOPMENT_URI")
+client = MongoClient(MONGO_URI, tls=True, tlsAllowInvalidCertificates=True)
 
 db = client.audio
 
