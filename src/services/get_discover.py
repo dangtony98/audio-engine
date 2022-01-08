@@ -89,6 +89,10 @@ def clean_output(pool):
     def clean(item):
         item["_id"] = str(item["_id"])
         item["user"] = str(item["user"])
+        try:
+            item["rss"] = str(item["rss"])
+        except KeyError:
+            print("The user" + item["_id"]  + "has no attribute rss")
         return item
 
     return [clean(item) for item in pool]
