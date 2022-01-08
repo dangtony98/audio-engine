@@ -7,12 +7,11 @@ import os
 
 app = Flask(__name__)
 if os.environ.get("ENV") == "production":
-    MONGO_URI = os.environ.get("MONGO_PRODUCTION_URI")
+    client = MongoClient(os.environ.get("MONGO_PRODUCTION_URI"), tls=True, tlsAllowInvalidCertificates=True)
+    db = client.audio
 else:
-    MONGO_URI = os.environ.get("MONGO_DEVELOPMENT_URI")
-client = MongoClient(MONGO_URI, tls=True, tlsAllowInvalidCertificates=True)
-
-db = client.audio
+    client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
+    db = client.audio_testing
 
 from src.services.train_xs import *
 from src.services.get_discover import *
