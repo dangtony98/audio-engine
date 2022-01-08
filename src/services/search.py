@@ -4,13 +4,11 @@ import numpy as np
 from bson.objectid import ObjectId
 from scipy import spatial
 from operator import itemgetter
+from datetime import datetime, timedelta
 import pickle    
 import os 
 
-NUMBER_OF_CREATORS_TO_RECOMMEND = 20
-INVERSE_ORDER = -1
-OBJECT_ID_INDEX = 0
-PROB_INDEX = 1
+NUMBER_OF_SEARCH_RESULTS = 30
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -56,6 +54,10 @@ def clean_search_results(item):
         item["user"] = str(item["user"])
     except KeyError:
         print("The audio" + item["_id"]  + "has no attribute user")
+    try:
+        item["rss"] = str(item["rss"])
+    except KeyError:
+        print("The audio" + item["_id"]  + "has no attribute rss")
     return item
 
 
@@ -107,10 +109,23 @@ def get_search_audio_resuls(query):
 
     # Calculate mean cosine distanecs between each word of the query and each word in the titles of audios
     mean_distances = calc_distances(query, audios)
-    sorted_mean_distances = sort_ascending(mean_distances)
+    sorted_mean_distances = sort_ascending(mean_distances)[0:NUMBER_OF_SEARCH_RESULTS]
 
     # Get the data for the necessary audios and sort it in the right way
     search_results, ranking = get_audio_data(sorted_mean_distances)
     sorted_search_results = order_search_results(search_results, ranking)
 
     return sorted_search_results
+
+
+def push_search_to_db(user_id, search_query, search_results):
+    values = {}
+    values["user"] = ObjectId(user_id)
+    values["created_at"] = datetime.now() 
+    values["query"] = search_query
+    values["results"] = [item["_id"] for item in search_results]
+
+    twenty_seconds_ago = datetime.now() - timedelta(seconds=15)
+    new_values = {"$set": values}
+
+    db.searches.update_one({"user": ObjectId(values["user"]), "created_at": {"$gte": twenty_seconds_ago}}, new_values, upsert=True)

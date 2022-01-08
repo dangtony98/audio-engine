@@ -112,12 +112,15 @@ def get_prof_recs(user_id):
     return jsonify(creator_recs), 200, {"ContentType": "application/json"}
 
 
-@app.route("/search/<string:query>", methods=["GET"])
-def search(query):
+@app.route("/search/<string:user_id>/<string:query>", methods=["GET"])
+def search(user_id, query):
     """
     Get search suggestions based on a user's query
     """
     search_results = get_search_audio_resuls(query)
+
+    # Push to the DB
+    push_search_to_db(user_id, query, search_results)
     return jsonify(search_results), 200, {"ContentType": "application/json"}
 
 
