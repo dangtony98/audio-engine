@@ -12,44 +12,52 @@ import speech_recognition as sr
 MAX_API_LENGTH_MS = 30000
 
 
-def get_audio(audio_id):
-    url = db.audios.find({"_id": ObjectId(audio_id)})[0]["url"]
+def get_audio(audio_ids):
+    # url = db.audios.find({"_id": ObjectId(audio_id)})[0]["url"]
+    audio_ids = [ObjectId(audio_id) for audio_id in audio_ids]
+    urls = [audio["url"] for audio in db.audios.find({"_id": {"$in": audio_ids}})]
+    print(urls)
+    sounds = []
+    for url in urls: 
+        req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        mp3file = urlopen(req)
+        with open('./initial.mp3','wb') as output:
+            output.write(mp3file.read())
 
-    req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    mp3file = urlopen(req)
-    with open('./initial.mp3','wb') as output:
-        output.write(mp3file.read())
-
-    sound = AudioSegment.from_mp3("./initial.mp3")
-    os.remove("initial.mp3")
-    return sound
+        sounds.append(AudioSegment.from_mp3("./initial.mp3"))
+        print("check", len(sounds))
+        os.remove("initial.mp3")
+    return sounds
 
 
-def transcribe_audio(sound, audio_id):
+def transcribe_audio(sounds, audio_ids):
     r = sr.Recognizer()
 
-    text = ""
-    # Need to split the audio into pieces of 30 sec max because of the API limits
-    for i in range(len(sound)//MAX_API_LENGTH_MS + 1):
-        sound[i*MAX_API_LENGTH_MS:(i+1)*MAX_API_LENGTH_MS].export(audio_id + str(i) + ".wav", format="wav")
-            
-        with sr.AudioFile(audio_id + str(i) + ".wav") as source:
-            audio_text = r.listen(source)
+    print(len(sounds))
+    print(audio_ids)
+    for sound_num in range(len(sounds)): 
+        text = ""
+        # Need to split the audio into pieces of 30 sec max because of the API limits
+        for i in range(len(sounds[sound_num])//MAX_API_LENGTH_MS + 1):
+            sounds[sound_num][i*MAX_API_LENGTH_MS:(i+1)*MAX_API_LENGTH_MS].export(audio_ids[sound_num] + str(i) + ".wav", format="wav")
+                
+            with sr.AudioFile(audio_ids[sound_num] + str(i) + ".wav") as source:
+                audio_text = r.listen(source)
 
-            try:
-                # using google speech recognition
-                text += r.recognize_google(audio_text) + " "
-            except sr.UnknownValueError:
-                print("Google Speech Recognition could not understand audio")
-                text += "UNK"
-            except sr.RequestError as e:
-                print("Could not request results from Google Speech Recognition service; {0}".format(e))
-            os.remove(audio_id + str(i) + ".wav")
-    db.audios.update_one(
-        {"_id": ObjectId(audio_id)}, 
-        {"$set": {"transcription": text}},
-        upsert=True
-    )
+                try:
+                    # using google speech recognition
+                    text += r.recognize_google(audio_text) + " "
+                except sr.UnknownValueError:
+                    print("Google Speech Recognition could not understand audio")
+                    text += "UNK"
+                except sr.RequestError as e:
+                    print("Could not request results from Google Speech Recognition service; {0}".format(e))
+                os.remove(audio_ids[sound_num] + str(i) + ".wav")
+        db.audios.update_one(
+            {"_id": ObjectId(audio_ids[sound_num])}, 
+            {"$set": {"transcription": text}},
+            upsert=True
+        )
 
     # TRYING LANGUAGE DETECTION, NEED TO CLEAN UP 
 
