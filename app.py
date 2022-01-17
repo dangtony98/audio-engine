@@ -2,7 +2,6 @@ from logging import error
 from flask import Flask, jsonify, request
 from numpy import NaN, e
 from pymongo import MongoClient
-from werkzeug.routing import BaseConverter
 import json
 import os
 
@@ -58,7 +57,7 @@ def get_discover(user_id):
     """
 
     # get feed
-    feed = get_feed(user_id)[0:50]
+    feed = get_feed(user_id)
 
     # update feed in DB
     update_feed(user_id, "discover", feed)
@@ -366,5 +365,5 @@ def search(user_id, query):
 #     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
 
-# if __name__ == '__main__': 
-#     app.run(debug=True)
+if __name__ == '__main__': 
+    app.run(debug=True)
