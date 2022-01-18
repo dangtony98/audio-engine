@@ -14,22 +14,24 @@ DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 dict_filter = lambda x, y: dict([(i,x[i]) for i in x if i in set(y)])
 
 
-# def pickle_word_embeddings():
-#     """ 
-#     USE IF YOU NEED TO PICKLE EMBEDDINGS
-#     """
-#     index = 0
-#     # TODO: fix embeddings_dict not found issue and the path issue
-#     with open("src/services/word_embeddings/glove.6B.50d.txt", 'r', encoding="utf-8") as f:
-#         for line in f:
-#             index += 1
-#             print(index)
-#             values = line.split()
-#             word = values[0]
-#             vector = np.asarray(values[1:], "float32")
-#             embeddings_dict[word] = vector
-#     with open('embeddings.pickle', 'wb') as handle:
-#         pickle.dump(embeddings_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+def pickle_word_embeddings():
+    """ 
+    USE IF YOU NEED TO PICKLE EMBEDDINGS
+    """
+    index = 0
+    embeddings_dict = {}
+    # TODO: fix embeddings_dict not found issue and the path issue
+    with open("/Users/vmatsiiako/Downloads/glove/glove.twitter.27B.25d.txt", 'r', encoding="utf-8") as f:
+        for line in f:
+            if index <= 600000:
+                index += 1
+                print(index)
+                values = line.split()
+                word = values[0]
+                vector = np.asarray(values[1:], "float32")
+                embeddings_dict[word] = vector
+    with open('embeddings_twitter.pickle', 'wb') as handle:
+        pickle.dump(embeddings_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def query_transcriptions(user_id):

@@ -57,34 +57,27 @@ def get_sorted_content(user_x, content_pool, ratings):
     return list(np.array(content_pool)[sort_idx[::-1]])
 
 
-def get_feed(user_id):
+def get_feed(user_id, embeddings_dict):
     """
     gets the discovery feed for user with id [user_id]
     """
 
-    PREFERENCES = ['Entertainment', 'Comedy', 'Daily Life', 'Storytelling', 'Arts', 'Music', 'Fashion Beauty',
-        'Health Fitness', 'Sports', 'Do It Yourself', 'True Crime', 'Dating', 'Parenting', 'Food', 'Travel', 
-        'Languages', 'History', 'Religion', 'Society', 'Culture', 'Education', 'Science', 'Career', 'Business', 
-        'Tech', 'Finance Investing', 'Politics', 'News']
+    PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
+        'health fitness', 'sports', 'do it yourself', 'true crime', 'dating', 'parenting', 'food', 'travel', 
+        'languages', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
+        'tech', 'finance investing', 'politics', 'news']
     user_x = get_user_x(user_id)
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
-    print(user_preferences)
-
-    embeddings_dict = load_embeddings()
 
     user_preferences = np.array([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences])
-    print(user_preferences)
 
     seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs = get_content_pool(user_id)
 
     unseen_titles = [audio["title"] for audio in unseen_pool]
-    print(unseen_titles)
     unseen_titles = [title.lower() for title in unseen_titles]
-    print(unseen_titles)
     unseen_titles = [delete_stopwords(title) for title in unseen_titles]
-    print(unseen_titles)
     unseen_titles = np.array([calculate_embedding(embeddings_dict, unseen_title) for unseen_title in unseen_titles])
-    # print(unseen_titles)
+
     mm = []
     for preference in user_preferences:
         mm.append([np.dot(preference, title) for title in unseen_titles])
@@ -116,24 +109,9 @@ def load_embeddings():
     """
     Load teh previously pickled embeddings
     """
-    with open(DIR_PATH + '/word_embeddings/embeddings.pickle', 'rb') as handle:
+    with open(DIR_PATH + '/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
         embeddings_dict = pickle.load(handle)
     return embeddings_dict
-
-
-# def calculate_embedding(embeddings_dict, words):
-#     """
-#     Calculate creator embeddings by putting them through word embeddings or making them 0's if those don't exist
-#     """
-#     embeddings = []
-#     for word in words: 
-#         word = word.split()
-#         word = [subword.lower() for subword in word]
-#         embedding = [embeddings_dict[subword] for subword in word if subword in embeddings_dict]
-#         if embedding != embedding:
-#             embedding = [0] * 50
-#         embeddings.append(embedding)
-#     return embeddings
 
 
 def calculate_embedding(embeddings_dict, words):

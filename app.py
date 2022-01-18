@@ -50,7 +50,7 @@ def train_xs():
     bulkWriteEmbeddings(qs_xs, db.audios)
     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
-
+embeddings_dict = load_embeddings()
 @app.route("/get_discover/<string:user_id>", methods=["GET"])
 def get_discover(user_id):
     """
@@ -58,7 +58,7 @@ def get_discover(user_id):
     update the "discover" feed for user with id [user_id] in DB
     """
     # get feed
-    feed = get_feed(user_id)
+    feed = get_feed(user_id, embeddings_dict)
 
     # update feed in DB
     update_feed(user_id, "discover", feed)
@@ -122,6 +122,11 @@ def search(user_id, query):
     # Push to the DB
     push_search_to_db(user_id, query, search_results)
     return jsonify(search_results), 200, {"ContentType": "application/json"}
+
+
+@app.route("/pickle", methods=["POST"])
+def pickle():
+    pickle_word_embeddings()
 
 # import tensorflow as tf
 # class MaskedEmbeddingsAggregatorLayer(tf.keras.layers.Layer):
