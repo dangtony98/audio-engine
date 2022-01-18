@@ -13,10 +13,9 @@ MAX_API_LENGTH_MS = 30000
 
 
 def get_audio(audio_ids):
-    # url = db.audios.find({"_id": ObjectId(audio_id)})[0]["url"]
     audio_ids = [ObjectId(audio_id) for audio_id in audio_ids]
     urls = [audio["url"] for audio in db.audios.find({"_id": {"$in": audio_ids}})]
-    print(urls)
+    
     sounds = []
     for url in urls: 
         req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -25,7 +24,6 @@ def get_audio(audio_ids):
             output.write(mp3file.read())
 
         sounds.append(AudioSegment.from_mp3("./initial.mp3"))
-        print("check", len(sounds))
         os.remove("initial.mp3")
     return sounds
 
@@ -33,8 +31,6 @@ def get_audio(audio_ids):
 def transcribe_audio(sounds, audio_ids):
     r = sr.Recognizer()
 
-    print(len(sounds))
-    print(audio_ids)
     for sound_num in range(len(sounds)): 
         text = ""
         # Need to split the audio into pieces of 30 sec max because of the API limits
@@ -53,6 +49,7 @@ def transcribe_audio(sounds, audio_ids):
                 except sr.RequestError as e:
                     print("Could not request results from Google Speech Recognition service; {0}".format(e))
                 os.remove(audio_ids[sound_num] + str(i) + ".wav")
+        print(text)
         db.audios.update_one(
             {"_id": ObjectId(audio_ids[sound_num])}, 
             {"$set": {"transcription": text}},

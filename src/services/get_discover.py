@@ -3,13 +3,19 @@ from bson.objectid import ObjectId
 import numpy as np
 from cvxpy import *
 from app import db
+from datetime import datetime
+import pickle
+import os
+
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+INVERSE_ORDER = -1
 
 
 def get_user_x(user_id):
     """
     gets embedding for user with id [user_id]
     """
-    return list(db.users.find({"_id": ObjectId(user_id)}))[0]["embedding"]
+    return list(db.users.find({"_id": ObjectId(user_id)}))[0]["initEmbedding"]
 
 
 def get_content_pool(user_id):
@@ -36,7 +42,7 @@ def get_content_pool(user_id):
     return seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs
 
 
-def get_sorted_content(user_x, content_pool, content_pool_xs):
+def get_sorted_content(user_x, content_pool, ratings):
     """
     Return sorted content ratings
     """
@@ -45,7 +51,7 @@ def get_sorted_content(user_x, content_pool, content_pool_xs):
         # case: [content_pool] is empty
         return content_pool
 
-    ratings = np.dot(np.array(content_pool_xs), np.array(user_x))
+    # ratings = np.dot(np.array(content_pool_xs), np.array(user_x))
     sort_idx = ratings.argsort()
 
     return list(np.array(content_pool)[sort_idx[::-1]])
@@ -56,14 +62,88 @@ def get_feed(user_id):
     gets the discovery feed for user with id [user_id]
     """
 
+    PREFERENCES = ['Entertainment', 'Comedy', 'Daily Life', 'Storytelling', 'Arts', 'Music', 'Fashion Beauty',
+        'Health Fitness', 'Sports', 'Do It Yourself', 'True Crime', 'Dating', 'Parenting', 'Food', 'Travel', 
+        'Languages', 'History', 'Religion', 'Society', 'Culture', 'Education', 'Science', 'Career', 'Business', 
+        'Tech', 'Finance Investing', 'Politics', 'News']
     user_x = get_user_x(user_id)
+    user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
+    print(user_preferences)
+
+    embeddings_dict = load_embeddings()
+
+    user_preferences = np.array([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences])
+    print(user_preferences)
+
     seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs = get_content_pool(user_id)
 
-    sorted_seen_pool = get_sorted_content(user_x, seen_pool, seen_pool_xs)
-    sorted_unseen_pool = get_sorted_content(user_x, unseen_pool, unseen_pool_xs)
+    unseen_titles = [audio["title"] for audio in unseen_pool]
+    print(unseen_titles)
+    unseen_titles = [title.lower() for title in unseen_titles]
+    print(unseen_titles)
+    unseen_titles = [delete_stopwords(title) for title in unseen_titles]
+    print(unseen_titles)
+    unseen_titles = np.array([calculate_embedding(embeddings_dict, unseen_title) for unseen_title in unseen_titles])
+    # print(unseen_titles)
+    mm = []
+    for preference in user_preferences:
+        mm.append([np.dot(preference, title) for title in unseen_titles])
+    dot_prod = np.mean(mm, axis=0)
+    dtype = [('_id', ObjectId), ('prob_to_listen', float)]
+    result = np.array(list(zip(np.array([audio["_id"] for audio in unseen_pool]), dot_prod)), dtype=dtype)
+    result = np.sort(result, order='prob_to_listen')[::INVERSE_ORDER]
+    print(result)
 
-    feed = sorted_unseen_pool + sorted_seen_pool
+    # sorted_seen_pool = get_sorted_content(user_x, seen_pool, seen_pool_xs)
+    sorted_unseen_pool = get_sorted_content(user_x, unseen_pool, dot_prod)
+
+    feed = sorted_unseen_pool
+    
     return feed
+
+
+def delete_stopwords(audio_transcriptions):
+    """
+    Delete stopwords from the audio transcriptions (a, the, and, etc.)
+    """
+    with open(DIR_PATH + '/word_embeddings/stopwords.pickle', 'rb') as handle:
+        stopwords = pickle.load(handle)
+    transcriptions_without_stop_words = " ".join([word for word in audio_transcriptions.split() if not word in stopwords])
+    return transcriptions_without_stop_words
+
+
+def load_embeddings():
+    """
+    Load teh previously pickled embeddings
+    """
+    with open(DIR_PATH + '/word_embeddings/embeddings.pickle', 'rb') as handle:
+        embeddings_dict = pickle.load(handle)
+    return embeddings_dict
+
+
+# def calculate_embedding(embeddings_dict, words):
+#     """
+#     Calculate creator embeddings by putting them through word embeddings or making them 0's if those don't exist
+#     """
+#     embeddings = []
+#     for word in words: 
+#         word = word.split()
+#         word = [subword.lower() for subword in word]
+#         embedding = [embeddings_dict[subword] for subword in word if subword in embeddings_dict]
+#         if embedding != embedding:
+#             embedding = [0] * 50
+#         embeddings.append(embedding)
+#     return embeddings
+
+
+def calculate_embedding(embeddings_dict, words):
+    """
+    Calculate creator embeddings by putting them through word embeddings or making them 0's if those don't exist
+    """
+    creator_embedding = np.mean([embeddings_dict[word] for word in words.split() if word in embeddings_dict], axis=0).tolist()
+    if creator_embedding != creator_embedding:
+        creator_embedding = [0] * 50
+    return creator_embedding
 
 
 def update_feed(user_id, feed_name, feed):
@@ -76,9 +156,11 @@ def update_feed(user_id, feed_name, feed):
     values = {}
     values[feed_name] = [item["_id"] for item in feed]
     values["user"] = ObjectId(user_id)
-    new_values = {"$set": values}
+    values["created_at"] = datetime.now()
+    # new_values = {"$set": values}
 
-    db.feeds.update_one(filter, new_values, upsert=True)
+    # db.feeds.update_one(filter, new_values, upsert=True)
+    db.feeds.insert_one(values)
 
 
 def clean_output(pool):
