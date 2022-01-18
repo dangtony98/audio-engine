@@ -4,14 +4,34 @@ from numpy import NaN, e
 from pymongo import MongoClient
 import json
 import os
+# from celery import Celery
+from client import db, client
 
 app = Flask(__name__)
-if os.environ.get("ENV") == "production":
-    client = MongoClient(os.environ.get("MONGO_PRODUCTION_URI"), tls=True, tlsAllowInvalidCertificates=True)
-    db = client.audio
-else:
-    client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
-    db = client.audio_testing
+# if os.environ.get("ENV") == "production":
+#     client = MongoClient(os.environ.get("MONGO_PRODUCTION_URI"), tls=True, tlsAllowInvalidCertificates=True)
+#     db = client.audio
+# else:
+#     client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
+#     db = client.audio_testing
+
+# def make_celery(app):
+#     # set redis url vars
+#     app.config['CELERY_BROKER_URL'] = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+#     app.config['CELERY_RESULT_BACKEND'] = app.config['CELERY_BROKER_URL']
+#     # create context tasks in celery
+#     celery = Celery(app.import_name, broker=app.config['CELERY_BROKER_URL'])
+#     celery.conf.update(app.config)
+#     TaskBase = celery.Task
+#     class ContextTask(TaskBase):
+#         abstract = True
+#         def __call__(self, *args, **kwargs):
+#             with app.app_context():
+#                 return TaskBase.__call__(self, *args, **kwargs)
+#     celery.Task = ContextTask
+#     return celery
+
+# celery = make_celery(current_app)
 
 from src.services.train_xs import *
 from src.services.get_discover import *
@@ -21,6 +41,7 @@ from src.services.retrain_prof_recommender import *
 from src.services.update_creator_embedding import *
 from src.services.search import *
 from src.middleware.middleware import *
+from tasks import background_transcribe
 
 app.wsgi_app = Middleware(app.wsgi_app)
 
@@ -55,7 +76,6 @@ def get_discover(user_id):
     return the "discover" feed for user with id [user_id]
     update the "discover" feed for user with id [user_id] in DB
     """
-
     # get feed
     feed = get_feed(user_id)
 
@@ -73,11 +93,7 @@ def transcribe():
     """
     request_data = request.get_json()
     audio_ids = request_data['audio_ids']
-    for audio in audio_ids:
-        sounds = get_audio([audio])
-
-        # Update/Insert the transcription into DB
-        transcribe_audio(sounds, audio_ids)
+    background_transcribe.delay(audio_ids)
 
     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
@@ -126,244 +142,268 @@ def search(user_id, query):
     push_search_to_db(user_id, query, search_results)
     return jsonify(search_results), 200, {"ContentType": "application/json"}
 
-# import tensorflow as tf
-# class MaskedEmbeddingsAggregatorLayer(tf.keras.layers.Layer):
-#     def __init__(self, agg_mode='sum', **kwargs):
-#         super(MaskedEmbeddingsAggregatorLayer, self).__init__(**kwargs)
-#         if agg_mode not in ['sum', 'mean']:
-#             raise NotImplementedError('mode {} not implemented!'.format(agg_mode))
-#         self.agg_mode = agg_mode
+import tensorflow as tf
+class MaskedEmbeddingsAggregatorLayer(tf.keras.layers.Layer):
+    def __init__(self, agg_mode='sum', **kwargs):
+        super(MaskedEmbeddingsAggregatorLayer, self).__init__(**kwargs)
+        if agg_mode not in ['sum', 'mean']:
+            raise NotImplementedError('mode {} not implemented!'.format(agg_mode))
+        self.agg_mode = agg_mode
     
-#     @tf.function
-#     def call(self, inputs, mask=None):
-#         masked_embeddings = tf.ragged.boolean_mask(inputs, mask)
-#         # tf.print(mask)
-#         # tf.print(masked_embeddings)
-#         if self.agg_mode == 'sum':
-#             aggregated =  tf.reduce_sum(masked_embeddings, axis=1)
-#         elif self.agg_mode == 'mean':
-#             aggregated = tf.reduce_mean(masked_embeddings, axis=1)
-#         return aggregated
+    @tf.function
+    def call(self, inputs, mask=None):
+        masked_embeddings = tf.ragged.boolean_mask(inputs, mask)
+        # tf.print(mask)
+        # tf.print(masked_embeddings)
+        if self.agg_mode == 'sum':
+            aggregated =  tf.reduce_sum(masked_embeddings, axis=1)
+        elif self.agg_mode == 'mean':
+            aggregated = tf.reduce_mean(masked_embeddings, axis=1)
+        return aggregated
     
-#     def get_config(self):
-#         # this is used when loading a saved model that uses a custom layer
-#         return {'agg_mode': self.agg_mode}
+    def get_config(self):
+        # this is used when loading a saved model that uses a custom layer
+        return {'agg_mode': self.agg_mode}
 
-# class L2NormLayer(tf.keras.layers.Layer):
-#         def __init__(self, **kwargs):
-#             super(L2NormLayer, self).__init__(**kwargs)
+class L2NormLayer(tf.keras.layers.Layer):
+        def __init__(self, **kwargs):
+            super(L2NormLayer, self).__init__(**kwargs)
         
-#         @tf.function
-#         def call(self, inputs, mask=None):
-#             if mask is not None:
-#                 inputs = tf.ragged.boolean_mask(inputs, mask).to_tensor()
-#             return tf.math.l2_normalize(inputs, axis=-1)
+        @tf.function
+        def call(self, inputs, mask=None):
+            if mask is not None:
+                inputs = tf.ragged.boolean_mask(inputs, mask).to_tensor()
+            return tf.math.l2_normalize(inputs, axis=-1)
 
-#         def compute_mask(self, inputs, mask):
-#             return mask
-
-
-# @app.route("/train_discover_dnn", methods=["POST"])
-# def train_discover_dnn():
-#     def compute_age(birthdate):
-#         """
-#         Compute age given the person's birthdate
-#         """
-#         try:
-#             today = date.today()
-#             age = today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
-#         except:
-#             age = 0
-#         return age
-#     import pandas as pd
-#     import random
-#     users = pd.DataFrame(db.users.find({}, {"_id": 1, "initEmbedding": 1, "birthday": 1}))
-#     users["age"] = users['birthday'].apply(lambda x: compute_age(x))
-#     users.rename(columns={'_id': 'user'}, inplace=True)
-#     print(users)
-#     # ratings["audio"] = ratings["audio"].factorize()[0] + 1
-#     # TODO: 1, 2, or 3?
-#     # NUM_CLASSES = ratings["audio"].max() + 3
-#     audios = [element["_id"] for element in db.audios.find({}, {"_id": 1})]
-#     print(audios)
-#     audio2audio_encoded = {x: i + 1 for i, x in enumerate(audios)}
-#     audioencoded2audio = {i + 1: x for i, x in enumerate(audios)}
-#     NUM_CLASSES = len(audios)
-#     # print(audio2audio_encoded)
-
-#     ratings = pd.DataFrame(db.ratings.find({}, {"audio": 1, "user": 1, "rating": 1}))
-#     print(ratings["audio"])
-#     ratings["audio"] = ratings["audio"].map(audio2audio_encoded)
-#     audios = list(ratings["audio"])
-#     print(audios)
-#     ratings = ratings.drop(columns="_id").groupby('user').agg(list).reset_index()
-#     ratings = users.drop(columns='birthday').merge(ratings, on="user", how='right')
-#     # ratings['rating'] = ratings['rating'].apply(lambda x: x if type(x) is list else []) # NaN 처리
-
-#     ratings["predict"] = ratings["audio"].apply(lambda x: x[-1])
-#     ratings['audio'] = ratings['audio'].apply(lambda x: x[:-1])
-#     ratings['rating'] = ratings['rating'].apply(lambda x: x[:-1])
-
-#     print(ratings.drop(columns='user')) 
-#     # train_data = ratings[(ratings.index <= len(ratings.index) - 2)]
-#     # test_data = ratings[(ratings.index >= len(ratings.index) - 1)]
-#     test_data = ratings[(ratings.index <= 0)]
-#     train_data = ratings[(ratings.index >= 1)]
-#     EMBEDDING_DIMS = 16
-#     DENSE_UNITS = 64
-#     DROPOUT_PCT = 0.0
-#     ALPHA = 0.0
-#     # NUM_CLASSES=18
-#     LEARNING_RATE = 0.003
-
-#     import tensorflow as tf
-#     import datetime
-#     import os
-#     input_watch_hist = tf.keras.Input(shape=(None, ), name='watch_hist')
-#     input_watch_hist_time = tf.keras.layers.Input(shape=(None,), name='watch_hist_time')
-#     input_age = tf.keras.layers.Input(shape=(1,), name='age')
-#     input_init_embeddings = tf.keras.layers.Input(shape=(12,), name='input_init_embeddings')
+        def compute_mask(self, inputs, mask):
+            return mask
 
 
-#     #--- layers
-#     features_embedding_layer = tf.keras.layers.Embedding(input_dim=NUM_CLASSES, output_dim=EMBEDDING_DIMS, 
-#                                                 mask_zero=True, trainable=True, name='features_embeddings')
-#     labels_embedding_layer = tf.keras.layers.Embedding(input_dim=NUM_CLASSES, output_dim=EMBEDDING_DIMS, 
-#                                                 mask_zero=True, trainable=True, name='labels_embeddings')
+@app.route("/train_discover_dnn", methods=["POST"])
+def train_discover_dnn():
+    # Getting all the users 
+    import pandas as pd
+    users = pd.DataFrame(db.users.find({}, {"_id": 1, "initEmbedding": 1, "birthday": 1}))
+    users["age"] = users['birthday'].apply(lambda x: compute_age(x))
+    users.rename(columns={'_id': 'user'}, inplace=True)
+    print(users)
 
-#     avg_embeddings = MaskedEmbeddingsAggregatorLayer(agg_mode='mean', name='aggregate_embeddings')
+    # ratings["audio"] = ratings["audio"].factorize()[0] + 1
+    # TODO: 1, 2, or 3?
+    # NUM_CLASSES = ratings["audio"].max() + 3
 
-#     dense_1 = tf.keras.layers.Dense(units=DENSE_UNITS, name='dense_1')
-#     dense_2 = tf.keras.layers.Dense(units=DENSE_UNITS, name='dense_2')
-#     dense_3 = tf.keras.layers.Dense(units=DENSE_UNITS, name='dense_3')
-#     l2_norm_1 = L2NormLayer(name='l2_norm_1')
+    # Getting the ids of all the audios and mapping them to numbers 
+    audios = [element["_id"] for element in db.audios.find({}, {"_id": 1})]
+    print(audios)
+    audio2audio_encoded = {x: i for i, x in enumerate(audios)}
+    audioencoded2audio = {i: x for i, x in enumerate(audios)}
+    NUM_CLASSES = len(audios)
+    # print(audio2audio_encoded)
 
-#     dense_output = tf.keras.layers.Dense(NUM_CLASSES, activation=tf.nn.softmax, name='dense_output')
+    # Getting the ratings and sorting them in the order of listening timestamps
+    ratings = pd.DataFrame(db.ratings.find({}, {"audio": 1, "user": 1, "rating": 1}).sort("listenedAt"))
+    print(ratings)
 
-#     #--- features
-#     features_embeddings = features_embedding_layer(input_watch_hist)
-#     l2_norm_features = l2_norm_1(features_embeddings)
-#     avg_features = avg_embeddings(l2_norm_features)
+    # Ecncoding ObkectIds into numbers 
+    ratings["audio"] = ratings["audio"].map(audio2audio_encoded)
+    audios = list(ratings["audio"])
+    print(audios)
 
-#     labels_watch_embeddings = labels_embedding_layer(input_watch_hist_time)
-#     l2_norm_watched = l2_norm_1(labels_watch_embeddings)
-#     avg_watched = avg_embeddings(l2_norm_watched)
+    # Groupping everything by users and aggregating the ratings 
+    ratings = ratings.drop(columns="_id").groupby('user').agg(list).reset_index()
+    ratings = users.drop(columns='birthday').merge(ratings, on="user", how='right')
+    # ratings['rating'] = ratings['rating'].apply(lambda x: x if type(x) is list else []) # NaN 처리
 
-#     labels_watch_embeddings = labels_embedding_layer(input_init_embeddings)
-#     l2_norm_watched = l2_norm_1(labels_watch_embeddings)
+    # Creating all historical sequences of audios and ratings
+    ratings["audio"] = ratings['audio'].apply(lambda x: [x[:i+1] for i in range(len(x))])
+    ratings["rating"] = ratings['rating'].apply(lambda x: [x[:i+1] for i in range(len(x))])
 
-#     concat_inputs = tf.keras.layers.Concatenate(axis=1)([avg_features, avg_watched, input_age, input_init_embeddings])
-
-#     # Dense Layers
-#     dense_1_features = dense_1(concat_inputs)
-#     dense_1_relu = tf.keras.layers.ReLU(name='dense_1_relu')(dense_1_features)
-#     dense_1_batch_norm = tf.keras.layers.BatchNormalization(name='dense_1_batch_norm')(dense_1_relu)
-
-#     dense_2_features = dense_2(dense_1_relu)
-#     dense_2_relu = tf.keras.layers.ReLU(name='dense_2_relu')(dense_2_features)
-#     # dense_2_batch_norm = tf.keras.layers.BatchNormalization(name='dense_2_batch_norm')(dense_2_relu)
-
-#     dense_3_features = dense_3(dense_2_relu)
-#     dense_3_relu = tf.keras.layers.ReLU(name='dense_3_relu')(dense_3_features)
-#     dense_3_batch_norm = tf.keras.layers.BatchNormalization(name='dense_3_batch_norm')(dense_3_relu)
-#     outputs = dense_output(dense_3_batch_norm)
-
-#     #Optimizer
-#     optimiser = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
-
-#     #--- prep model
-#     model = tf.keras.models.Model(
-#         inputs=[input_watch_hist, 
-#                 input_watch_hist_time, 
-#                 input_age,
-#                 input_init_embeddings],
-#         outputs=[outputs]
-#     )
-#     logdir = os.path.join("logs", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-#     # tensorboard_callback = tf.keras.callbacks.TensorBoard(logdir, histogram_freq=1)
-#     model.compile(optimizer=optimiser, loss='sparse_categorical_crossentropy', metrics=['acc'])
-#     print(ratings['audio'])
-#     # print(ratings['rating'])
-#     print(np.array(list(train_data['initEmbedding']), dtype=int))
-#     history = model.fit([tf.keras.preprocessing.sequence.pad_sequences(train_data['audio'], maxlen=12) + 1e-10,
-#            tf.keras.preprocessing.sequence.pad_sequences(train_data['rating'], maxlen=12, dtype=float) + 1e-10, 
-#            train_data['age'],
-#            np.array(list(train_data['initEmbedding']), dtype=int)], 
-#            train_data['predict'].values, steps_per_epoch=1, epochs=50)
-
-#     pred = model.predict([tf.keras.preprocessing.sequence.pad_sequences(test_data['audio'], maxlen=12) + 1e-10,
-#            tf.keras.preprocessing.sequence.pad_sequences(test_data['rating'], maxlen=12, dtype=float) + 1e-10, 
-#            test_data['age'],
-#            np.array(list(test_data['initEmbedding']), dtype=int)
-#            ])
-
-#     model.save("candidate_generation.h5")
-
-#     print(pred[0])
-#     # import heapq
-#     # import operator
-#     # a = list(zip(*heapq.nlargest(10, enumerate(pred[0]), key=operator.itemgetter(1))))[0]
-#     # print(a)
-#     N = 10
-#     k = np.sort((-pred).argsort()[:,:N])
-#     print(k)
-#     # k = [np.array(list(map(audioencoded2audio, k[0])))]
-#     k = [audioencoded2audio[x] for x in k[0]]
-#     print(k)
-#     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
-
-
-# model = tf.keras.models.load_model(
-#         'candidate_generation.h5',
-#         custom_objects={
-#             'L2NormLayer':L2NormLayer,
-#             'MaskedEmbeddingsAggregatorLayer':MaskedEmbeddingsAggregatorLayer
-#         }
-#     )
-
-
-# @app.route("/get_discover_dnn/<string:user_id>", methods=["GET"])
-# def get_discover_dnn(user_id):
-#     # load candidate_generation 
-#     import timeit
-#     # def load():
+    # Spliting all the sequence into separate data points 
+    final_ratings = pd.DataFrame({"user": [], "initEmbedding": [], "age": [], "audio": [], "rating": []})
+    for index, row in ratings.iterrows(): 
+        for elem in range(len(row["audio"])):
+            final_ratings.loc[len(final_ratings.index)] = [row["user"], row["initEmbedding"], row["age"], row["audio"][elem], row["rating"][elem]]
+    ratings = final_ratings
+    print(ratings)
     
-#     # loop = 10
-#     # result = timeit.timeit(lambda: load(), number=loop)
-#     # print(result / loop)
-#     import pandas as pd
-#     user_info = pd.DataFrame(db.users.find({"_id": ObjectId(user_id)}, {"initEmbedding": 1, "birthday": 1}))
-#     ratings_info = list(db.ratings.find({"user": ObjectId(user_id)}, {"rating": 1, "audio": 1}))
-#     # print(ratings_info)
-#     audios_r = [elem["audio"] for elem in ratings_info]
-#     ratings = [elem["rating"] for elem in ratings_info]
+    # Creating the column that we need to predict 
+    ratings["predict"] = ratings["audio"].apply(lambda x: x[-1])
+    ratings['audio'] = ratings['audio'].apply(lambda x: x[:-1])
+    ratings['rating'] = ratings['rating'].apply(lambda x: x[:-1])
 
-#     audios = [element["_id"] for element in db.audios.find({}, {"_id": 1})]
-#     # print(audios)
-#     audio2audio_encoded = {x: i + 1 for i, x in enumerate(audios)}
-#     audioencoded2audio = {i + 1: x for i, x in enumerate(audios)}
+    # Splitting into training vs testing data
+    # train_data = ratings[(ratings.index <= len(ratings.index) - 2)]
+    # test_data = ratings[(ratings.index >= len(ratings.index) - 1)]
+    test_data = ratings[(ratings.index <= 0)]
+    train_data = ratings[(ratings.index >= 1)]
 
-#     audios_encoded = [audio2audio_encoded[elem] for elem in audios_r]
-#     # print(audios_encoded)
+    # Imnitializing constant for model training 
+    EMBEDDING_DIMS = 16
+    DENSE_UNITS = 64
+    DROPOUT_PCT = 0.0
+    ALPHA = 0.0
+    LEARNING_RATE = 0.003
 
-#     user_info["age"] = user_info['birthday'].apply(lambda x: compute_age(x))
+    import tensorflow as tf
+    import datetime
+    import os
+    input_watch_hist = tf.keras.Input(shape=(None, ), name='watch_hist')
+    input_watch_hist_time = tf.keras.layers.Input(shape=(None,), name='watch_hist_time')
+    input_age = tf.keras.layers.Input(shape=(1,), name='age')
+    input_init_embeddings = tf.keras.layers.Input(shape=(12,), name='input_init_embeddings')
 
-#     pred = model.predict([tf.keras.preprocessing.sequence.pad_sequences([audios_encoded], maxlen=12) + 1e-10,
-#            tf.keras.preprocessing.sequence.pad_sequences([ratings], maxlen=12, dtype=float) + 1e-10, 
-#            user_info["age"],
-#            np.array(list(user_info["initEmbedding"]), dtype=int)
-#            ])
 
-#     N = 10
-#     k = np.sort((-pred).argsort()[:,:N])
-#     k = [audioencoded2audio[x] for x in k[0]]
-#     # print(k)
+    #--- layers
+    features_embedding_layer = tf.keras.layers.Embedding(input_dim=NUM_CLASSES, output_dim=EMBEDDING_DIMS, 
+                                                mask_zero=True, trainable=True, name='features_embeddings')
+    labels_embedding_layer = tf.keras.layers.Embedding(input_dim=NUM_CLASSES, output_dim=EMBEDDING_DIMS, 
+                                                mask_zero=True, trainable=True, name='labels_embeddings')
 
-#     result = list(db.audios.find({"_id": {"$in": k}}))
+    avg_embeddings = MaskedEmbeddingsAggregatorLayer(agg_mode='mean', name='aggregate_embeddings')
 
-#     print(result)
+    dense_1 = tf.keras.layers.Dense(units=DENSE_UNITS, name='dense_1')
+    dense_2 = tf.keras.layers.Dense(units=DENSE_UNITS, name='dense_2')
+    dense_3 = tf.keras.layers.Dense(units=DENSE_UNITS, name='dense_3')
+    l2_norm_1 = L2NormLayer(name='l2_norm_1')
 
-#     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
+    dense_output = tf.keras.layers.Dense(NUM_CLASSES, activation=tf.nn.softmax, name='dense_output')
+
+    #--- features
+    features_embeddings = features_embedding_layer(input_watch_hist)
+    l2_norm_features = l2_norm_1(features_embeddings)
+    avg_features = avg_embeddings(l2_norm_features)
+
+    labels_watch_embeddings = labels_embedding_layer(input_watch_hist_time)
+    l2_norm_watched = l2_norm_1(labels_watch_embeddings)
+    avg_watched = avg_embeddings(l2_norm_watched)
+
+    labels_watch_embeddings = labels_embedding_layer(input_init_embeddings)
+    l2_norm_watched = l2_norm_1(labels_watch_embeddings)
+
+    concat_inputs = tf.keras.layers.Concatenate(axis=1)([avg_features, avg_watched, input_age, input_init_embeddings])
+
+    # Dense Layers
+    dense_1_features = dense_1(concat_inputs)
+    dense_1_relu = tf.keras.layers.ReLU(name='dense_1_relu')(dense_1_features)
+    dense_1_batch_norm = tf.keras.layers.BatchNormalization(name='dense_1_batch_norm')(dense_1_relu)
+
+    dense_2_features = dense_2(dense_1_relu)
+    dense_2_relu = tf.keras.layers.ReLU(name='dense_2_relu')(dense_2_features)
+    # dense_2_batch_norm = tf.keras.layers.BatchNormalization(name='dense_2_batch_norm')(dense_2_relu)
+
+    dense_3_features = dense_3(dense_2_relu)
+    dense_3_relu = tf.keras.layers.ReLU(name='dense_3_relu')(dense_3_features)
+    dense_3_batch_norm = tf.keras.layers.BatchNormalization(name='dense_3_batch_norm')(dense_3_relu)
+    outputs = dense_output(dense_3_batch_norm)
+
+    #Optimizer
+    optimiser = tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE)
+
+    #--- prep model
+    model = tf.keras.models.Model(
+        inputs=[input_watch_hist, 
+                input_watch_hist_time, 
+                input_age,
+                input_init_embeddings],
+        outputs=[outputs]
+    )
+    logdir = os.path.join("logs", datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    # tensorboard_callback = tf.keras.callbacks.TensorBoard(logdir, histogram_freq=1)
+    model.compile(optimizer=optimiser, loss='sparse_categorical_crossentropy', metrics=['acc'])
+
+    history = model.fit([tf.keras.preprocessing.sequence.pad_sequences(train_data['audio'], maxlen=12) + 1e-10,
+           tf.keras.preprocessing.sequence.pad_sequences(train_data['rating'], maxlen=12, dtype=float) + 1e-10, 
+           train_data['age'],
+           np.array(list(train_data['initEmbedding']), dtype=int)], 
+           train_data['predict'].values, steps_per_epoch=1, epochs=50)
+
+    pred = model.predict([tf.keras.preprocessing.sequence.pad_sequences(test_data['audio'], maxlen=12) + 1e-10,
+           tf.keras.preprocessing.sequence.pad_sequences(test_data['rating'], maxlen=12, dtype=float) + 1e-10, 
+           test_data['age'],
+           np.array(list(test_data['initEmbedding']), dtype=int)
+           ])
+
+    model.save("candidate_generation.h5")
+
+    # Generating candidates for a given user
+    print(pred[0])
+    import heapq
+    import operator
+    candidates = list(zip(*heapq.nlargest(50, enumerate(pred[0]), key=operator.itemgetter(1))))[0]
+    print(candidates)
+    # N = 50
+    # k = np.sort((-pred).argsort()[:,:N])
+    # print(k)
+    # k = [np.array(list(map(audioencoded2audio, k[0])))]
+    # k = [audioencoded2audio[x] for x in k[0]]
+    # print(k)
+
+
+
+    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
+
+
+model = tf.keras.models.load_model(
+        'candidate_generation.h5',
+        custom_objects={
+            'L2NormLayer':L2NormLayer,
+            'MaskedEmbeddingsAggregatorLayer':MaskedEmbeddingsAggregatorLayer
+        }
+    )
+
+
+@app.route("/get_discover_dnn/<string:user_id>", methods=["GET"])
+def get_discover_dnn(user_id):
+    # load candidate_generation 
+    import timeit
+    # def load():
+    
+    # loop = 10
+    # result = timeit.timeit(lambda: load(), number=loop)
+    # print(result / loop)
+    import pandas as pd
+    user_info = pd.DataFrame(db.users.find({"_id": ObjectId(user_id)}, {"initEmbedding": 1, "birthday": 1}))
+    ratings_info = list(db.ratings.find({"user": ObjectId(user_id)}, {"rating": 1, "audio": 1}))
+    print(ratings_info)
+    # print(ratings_info)
+    audios_r = [elem["audio"] for elem in ratings_info]
+    ratings = [elem["rating"] for elem in ratings_info]
+
+    audios = [element["_id"] for element in db.audios.find({}, {"_id": 1})]
+    # print(audios)
+    audio2audio_encoded = {x: i + 1 for i, x in enumerate(audios)}
+    audioencoded2audio = {i + 1: x for i, x in enumerate(audios)}
+
+    audios_encoded = [audio2audio_encoded[elem] for elem in audios_r]
+    # print(audios_encoded)
+
+    user_info["age"] = user_info['birthday'].apply(lambda x: compute_age(x))
+
+    pred = model.predict([tf.keras.preprocessing.sequence.pad_sequences([audios_encoded], maxlen=12) + 1e-10,
+           tf.keras.preprocessing.sequence.pad_sequences([ratings], maxlen=12, dtype=float) + 1e-10, 
+           user_info["age"],
+           np.array(list(user_info["initEmbedding"]), dtype=int)
+           ])
+
+
+    import heapq
+    import operator
+    a = list(zip(*heapq.nlargest(50, enumerate(pred[0]), key=operator.itemgetter(1))))[0]
+    print(a)
+
+    
+
+    # N = 50
+    # k = np.sort((-pred).argsort()[:,:N])
+    # print(k)
+    # k = [audioencoded2audio[x + 1] for x in k[0]]
+    # print(k)
+
+    # result = list(db.audios.find({"_id": {"$in": k}}))
+
+    # # print(result)
+
+    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
 
 if __name__ == '__main__': 
