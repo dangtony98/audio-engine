@@ -73,10 +73,11 @@ def transcribe():
     """
     request_data = request.get_json()
     audio_ids = request_data['audio_ids']
-    sounds = get_audio(audio_ids)
+    for audio in audio_ids:
+        sounds = get_audio([audio])
 
-    # Update/Insert the transcription into DB
-    transcribe_audio(sounds, audio_ids)
+        # Update/Insert the transcription into DB
+        transcribe_audio(sounds, audio_ids)
 
     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
