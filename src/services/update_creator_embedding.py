@@ -23,7 +23,7 @@ def pickle_word_embeddings():
     # TODO: fix embeddings_dict not found issue and the path issue
     with open("/Users/vmatsiiako/Downloads/glove/glove.twitter.27B.25d.txt", 'r', encoding="utf-8") as f:
         for line in f:
-            if index <= 600000:
+            if index <= 300000:
                 index += 1
                 print(index)
                 values = line.split()

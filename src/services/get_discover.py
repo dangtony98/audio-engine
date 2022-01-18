@@ -120,7 +120,7 @@ def calculate_embedding(embeddings_dict, words):
     """
     creator_embedding = np.mean([embeddings_dict[word] for word in words.split() if word in embeddings_dict], axis=0).tolist()
     if creator_embedding != creator_embedding:
-        creator_embedding = [0] * 50
+        creator_embedding = [0] * 25
     return creator_embedding
 
 
