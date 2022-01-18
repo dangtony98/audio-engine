@@ -5,8 +5,7 @@ from urllib.request import Request, urlopen
 from bson.objectid import ObjectId
 import os
 import speech_recognition as sr
-from pymongo import MongoClient
-from client import db, client
+from client import db
 
 app = Celery()
 # app.conf.from_object("celery_settings")
@@ -26,13 +25,12 @@ app.conf.update(BROKER_URL=os.environ['REDIS_URL'],
 
 
 @app.task
-def background_transcribe(audio_ids):
-    print("Start")
-    for audio in audio_ids:
-        sounds = get_audio([audio])
+def background_transcribe(audio_id):
+    print("Transcribing an audio...")
+    sounds = get_audio(audio_id)
 
-        # Update/Insert the transcription into DB
-        transcribe_audio(sounds, [audio])
+    # Update/Insert the transcription into DB
+    transcribe_audio(sounds, audio_id)
 
 
 MAX_API_LENGTH_MS = 30000
@@ -72,7 +70,8 @@ def transcribe_audio(sounds, audio_ids):
                     text += r.recognize_google(audio_text) + " "
                 except sr.UnknownValueError:
                     print("Google Speech Recognition could not understand audio")
-                    text += "UNK"
+                    if text == "":
+                        text = "UNK"
                 except sr.RequestError as e:
                     print("Could not request results from Google Speech Recognition service; {0}".format(e))
                 os.remove(audio_ids[sound_num] + str(i) + ".wav")
