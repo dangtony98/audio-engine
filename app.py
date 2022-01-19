@@ -74,6 +74,7 @@ def transcribe():
     """
     request_data = request.get_json()
     audio_ids = request_data['audio_ids']
+    print("To transcribe:", audio_ids)
     background_transcribe.delay(audio_ids)
     # for audio_id in audio_ids:
     #     background_transcribe.delay([audio_id])
