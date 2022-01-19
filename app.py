@@ -50,7 +50,7 @@ def train_xs():
     bulkWriteEmbeddings(qs_xs, db.audios)
     return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
-embeddings_dict = load_embeddings()
+
 @app.route("/get_discover/<string:user_id>", methods=["GET"])
 def get_discover(user_id):
     """
@@ -58,7 +58,7 @@ def get_discover(user_id):
     update the "discover" feed for user with id [user_id] in DB
     """
     # get feed
-    feed = get_feed(user_id, embeddings_dict)
+    feed = get_feed(user_id)
 
     # update feed in DB
     update_feed(user_id, "discover", feed)

@@ -24,7 +24,7 @@ def get_content_pool(user_id):
     """
 
     # get ids of seen ledges
-    seen_ids = [l["audio"] for l in db.listens.find({"user": ObjectId(user_id)})]
+    seen_ids = [l["audio"] for l in db.listens.find({"user": ObjectId(user_id), "wordEmbedding": {"$exists":1}})]
 
     # get ids of blocked users
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
@@ -32,7 +32,7 @@ def get_content_pool(user_id):
     blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}})]
 
     unseen_pool = list(
-        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}})
+        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists":1}})
     )
     seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
 
@@ -57,7 +57,7 @@ def get_sorted_content(user_x, content_pool, ratings):
     return list(np.array(content_pool)[sort_idx[::-1]])
 
 
-def get_feed(user_id, embeddings_dict):
+def get_feed(user_id):
     """
     gets the discovery feed for user with id [user_id]
     """
@@ -68,15 +68,16 @@ def get_feed(user_id, embeddings_dict):
         'tech', 'finance investing', 'politics', 'news']
     user_x = get_user_x(user_id)
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
-
+    embeddings_dict = load_embeddings()
     user_preferences = np.array([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences])
 
     seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs = get_content_pool(user_id)
 
-    unseen_titles = [audio["title"] for audio in unseen_pool]
-    unseen_titles = [title.lower() for title in unseen_titles]
-    unseen_titles = [delete_stopwords(title) for title in unseen_titles]
-    unseen_titles = np.array([calculate_embedding(embeddings_dict, unseen_title) for unseen_title in unseen_titles])
+    # unseen_titles = [audio["title"] for audio in unseen_pool]
+    # unseen_titles = [title.lower() for title in unseen_titles]
+    # unseen_titles = [delete_stopwords(title) for title in unseen_titles]
+    # unseen_titles = np.array([calculate_embedding(embeddings_dict, unseen_title) for unseen_title in unseen_titles])
+    unseen_titles = np.array([audio["wordEmbedding"] for audio in unseen_pool])
 
     mm = []
     for preference in user_preferences:
@@ -109,7 +110,7 @@ def load_embeddings():
     """
     Load teh previously pickled embeddings
     """
-    with open(DIR_PATH + '/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
+    with open(DIR_PATH + '/word_embeddings/preference_embeddings_twitter.pickle', 'rb') as handle:
         embeddings_dict = pickle.load(handle)
     return embeddings_dict
 

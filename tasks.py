@@ -18,6 +18,8 @@ app.conf.update(broker_url=os.environ['REDIS_URL'],
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 with open(DIR_PATH + '/src/services/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
         embeddings_dict = pickle.load(handle)
+with open(DIR_PATH + '/src/services/word_embeddings/stopwords.pickle', 'rb') as handle:
+        stopwords = pickle.load(handle)
 
 @app.task
 def background_transcribe(audio_ids):
@@ -83,11 +85,9 @@ def transcribe_audio(sounds, audio_ids):
 
 def calculate_embedding(text):
     print("Calculating embeddings...")
+    text = " ".join([word for word in text.split() if not word in stopwords])
     embedding = np.mean([embeddings_dict[word] for word in text.split() if word in embeddings_dict], axis=0).tolist()
     print("Done calculating embeddings.")
     if embedding != embedding:
         embedding = [0] * 25
     return embedding
-
-
-# TODO: Delete stopwords
