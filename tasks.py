@@ -1,6 +1,5 @@
 from celery import Celery
 import os
-from pexpect import TIMEOUT
 from pydub import AudioSegment
 from urllib.request import Request, urlopen
 from bson.objectid import ObjectId
