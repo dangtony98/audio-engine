@@ -1,36 +1,33 @@
 from celery import Celery
 import os
+from pexpect import TIMEOUT
 from pydub import AudioSegment
 from urllib.request import Request, urlopen
 from bson.objectid import ObjectId
 import os
 import speech_recognition as sr
 from client import db
+import pickle
+import numpy as np
 
 app = Celery()
-# app.conf.from_object("celery_settings")
-app.conf.update(BROKER_URL=os.environ['REDIS_URL'],
-                CELERY_RESULT_BACKEND=os.environ['REDIS_URL'])
+app.conf.update(broker_url=os.environ['REDIS_URL'],
+                result_backend=os.environ['REDIS_URL'], redis_max_connections=20, broker_transport_options = {
+    'max_connections': 20,
+}, broker_pool_limit=None)
 
-
-# if os.environ.get("ENV") == "production":
-#     client = MongoClient(os.environ.get("MONGO_PRODUCTION_URI"), tls=True, tlsAllowInvalidCertificates=True)
-#     db = client.audio
-# else:
-#     client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
-#     db = client.audio_testing
-
-
-# from src.services.transcribe import *
-
+DIR_PATH = os.path.dirname(os.path.realpath(__file__))
+with open(DIR_PATH + '/src/services/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
+    embeddings_dict = pickle.load(handle)
 
 @app.task
-def background_transcribe(audio_id):
-    print("Transcribing an audio...")
-    sounds = get_audio(audio_id)
+def background_transcribe(audio_ids):
+    for audio_id in audio_ids:
+        print("Transcribing an audio...")
+        sounds = get_audio([audio_id])
 
-    # Update/Insert the transcription into DB
-    transcribe_audio(sounds, audio_id)
+        # Update/Insert the transcription into DB
+        transcribe_audio(sounds, [audio_id])
 
 
 MAX_API_LENGTH_MS = 30000
@@ -75,8 +72,23 @@ def transcribe_audio(sounds, audio_ids):
                 except sr.RequestError as e:
                     print("Could not request results from Google Speech Recognition service; {0}".format(e))
                 os.remove(audio_ids[sound_num] + str(i) + ".wav")
+        embedding = calculate_embedding(text)
+        print("sending the data...")
         db.audios.update_one(
             {"_id": ObjectId(audio_ids[sound_num])}, 
-            {"$set": {"transcription": text}},
+            {"$set": {"transcription": text, "wordEmbedding": embedding}},
             upsert=True
         )
+        print("Done!")
+
+
+def calculate_embedding(text):
+    print("Calculating embeddings...")
+    embedding = np.mean([embeddings_dict[word] for word in text.split() if word in embeddings_dict], axis=0).tolist()
+    print("Done calculating embeddings.")
+    if embedding != embedding:
+        embedding = [0] * 25
+    return embedding
+
+
+# TODO: Delete stopwords
