@@ -16,7 +16,8 @@ app.conf.update(broker_url=os.environ['REDIS_URL'],
 }, broker_pool_limit=None)
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
-
+with open(DIR_PATH + '/src/services/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
+        embeddings_dict = pickle.load(handle)
 
 @app.task
 def background_transcribe(audio_ids):
@@ -82,8 +83,6 @@ def transcribe_audio(sounds, audio_ids):
 
 def calculate_embedding(text):
     print("Calculating embeddings...")
-    with open(DIR_PATH + '/src/services/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
-        embeddings_dict = pickle.load(handle)
     embedding = np.mean([embeddings_dict[word] for word in text.split() if word in embeddings_dict], axis=0).tolist()
     print("Done calculating embeddings.")
     if embedding != embedding:
