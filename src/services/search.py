@@ -121,11 +121,11 @@ def get_search_audio_resuls(query):
 def push_search_to_db(user_id, search_query, search_results):
     values = {}
     values["user"] = ObjectId(user_id)
-    values["created_at"] = datetime.now() 
+    values["createdAt"] = datetime.now() 
     values["query"] = search_query
     values["results"] = [item["_id"] for item in search_results]
 
     twenty_seconds_ago = datetime.now() - timedelta(seconds=15)
     new_values = {"$set": values}
 
-    db.searches.update_one({"user": ObjectId(values["user"]), "created_at": {"$gte": twenty_seconds_ago}}, new_values, upsert=True)
+    db.searches.update_one({"user": ObjectId(values["user"]), "createdAt": {"$gte": twenty_seconds_ago}}, new_values, upsert=True)

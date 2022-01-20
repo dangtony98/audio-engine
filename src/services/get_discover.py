@@ -135,7 +135,7 @@ def update_feed(user_id, feed_name, feed):
     values = {}
     values[feed_name] = [item["_id"] for item in feed]
     values["user"] = ObjectId(user_id)
-    values["created_at"] = datetime.now()
+    values["createdAt"] = datetime.now()
     # new_values = {"$set": values}
 
     # db.feeds.update_one(filter, new_values, upsert=True)
