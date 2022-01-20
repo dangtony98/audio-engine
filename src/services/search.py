@@ -7,6 +7,7 @@ from operator import itemgetter
 from datetime import datetime, timedelta
 import pickle    
 import os 
+from tasks import embeddings_dict, stopwords
 
 NUMBER_OF_SEARCH_RESULTS = 30
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -19,7 +20,7 @@ def get_start_data():
     """
     Query the id and title for all the audios. Potentially also hashtags
     """
-    audios = [[audio["_id"], audio["title"]] for audio in list(db.audios.find({}, {"title": 1}))]
+    audios = [[audio["_id"], audio["wordEmbedding"]] for audio in list(db.audios.find({"wordEmbedding": {"$exists":1}}, {"wordEmbedding": 1}))]
     return audios
 
 
@@ -41,7 +42,7 @@ def convert_to_embeddings(title, embeddings_dict, stopwords):
     It also disregards any stopwords
     """
     title = title.lower()
-    new_title = [embeddings_dict[word] for word in title.split() if (word not in stopwords) and (word in embeddings_dict)]
+    new_title = np.mean([embeddings_dict[word] for word in title.split() if (word not in stopwords) and (word in embeddings_dict)], axis=0)
     return new_title
 
 
@@ -65,7 +66,8 @@ def calc_distances(query, audios):
     """
     Calculate the mean cos distances betweed the words in query and the words in 
     """
-    distances = [[audio[0], np.mean([spatial.distance.cosine(query_word, word) for query_word in query for word in audio[1]])] for audio in audios]
+    # distances = [[audio[0], np.mean([spatial.distance.cosine(query_word, word) for query_word in query for word in audio[1]])] for audio in audios]
+    distances = [[audio[0], np.mean([spatial.distance.cosine(query, audio[1])])] for audio in audios]
     return distances
 
 
@@ -101,19 +103,22 @@ def order_search_results(search_results, ranking):
 def get_search_audio_resuls(query):
     # Query the data and load everything 
     audios = get_start_data()
-    embeddings_dict, stopwords = load_embeddings_stopwords()
+    # embeddings_dict, stopwords = load_embeddings_stopwords()
 
     # Convert audios and the query to word embeddings amd remove stopwords
-    audios = [[audio[0], convert_to_embeddings(audio[1], embeddings_dict, stopwords)] for audio in audios]
+    # audios = [[audio[0], convert_to_embeddings(audio[1], embeddings_dict, stopwords)] for audio in audios]
     query = convert_to_embeddings(query, embeddings_dict, stopwords)
 
     # Calculate mean cosine distanecs between each word of the query and each word in the titles of audios
     mean_distances = calc_distances(query, audios)
+    print(mean_distances)
     sorted_mean_distances = sort_ascending(mean_distances)[0:NUMBER_OF_SEARCH_RESULTS]
+    print(sorted_mean_distances)
 
     # Get the data for the necessary audios and sort it in the right way
     search_results, ranking = get_audio_data(sorted_mean_distances)
     sorted_search_results = order_search_results(search_results, ranking)
+    print([result["title"] for result in sorted_search_results])
 
     return sorted_search_results
 
