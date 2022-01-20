@@ -34,7 +34,8 @@ def get_listeners(user_id):
     listener_list = [np.array(listener[:1] + listener[1] + [compute_age(listener[2])]).tolist()]
 
     # Find all the listeners and represent them as a list
-    users = [user for user in db.users.find()]
+    users = [user for user in db.users.find({"_id": {"$nin": [ObjectId(user_id)]}})]
+    print(users)
     all_listeners = [list(dict_filter(user, listener_dict).values()) for user in users]
     all_listeners = [np.array(user[:1] + user[1] + [compute_age(user[2])]).tolist() for user in all_listeners]
     return listener_list, all_listeners, users
@@ -59,7 +60,8 @@ def get_creators(all_listeners, all_users):
         # Collect all the followers' listening data 
         followers_data = [listener[1:] for listener in all_listeners if listener[0] in followers]
         if len(followers_data) == 0:
-            followers_data = [np.zeros(13)]
+            # 28 inital preferences + 1 age variable
+            followers_data = [np.zeros(29)]
         followers_data_full += [np.mean(followers_data, axis=0)]
 
     # First the creator id, then their embedding, then the average of their followers' initEmbeddings and age.
