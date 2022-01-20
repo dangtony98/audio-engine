@@ -5,7 +5,6 @@ from bson.objectid import ObjectId
 import pickle    
 import os 
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.datasets import make_classification
 
 NUMBER_OF_CREATORS_TO_RECOMMEND = 20
 INVERSE_ORDER = -1
@@ -33,7 +32,7 @@ def get_listeners():
     Get certain fields from listeners and represent those as a list
     """
     listener_dict = ("_id", "initEmbedding", "birthday")
-    users = [user for user in db.users.find()]
+    users = [user for user in db.users.find({"roles": {"$in": ["user"]}})]
 
     listeners = [list(dict_filter(user, listener_dict).values()) for user in users]
     listeners = [np.array(user[:1] + user[1] + [compute_age(user[2])]).tolist() for user in listeners]
@@ -44,9 +43,10 @@ def get_creators(all_listeners, all_users):
     """ 
     Query the data for creators and their followers
     """
-    print("A")
     creator_dict = ("_id", "creatorEmbedding")
     creators = [list(dict_filter(user, creator_dict).values()) for user in all_users]
+    creators = [creator for creator in creators if len(creator)==2]
+
     follows_dict = ("from", "to")
     follows = [list(dict_filter(follow, follows_dict).values()) for follow in db.follows.find()]
     followers_data_full = []
@@ -57,7 +57,8 @@ def get_creators(all_listeners, all_users):
         # Collect all the followers' listening data 
         followers_data = [listener[1:] for listener in all_listeners if listener[0] in followers]
         if len(followers_data) == 0:
-            followers_data = [np.zeros(13)]
+            # 28 initial preferences + 1 age variable
+            followers_data = [np.zeros(29)]
         followers_data_full += [np.mean(followers_data, axis=0)]
 
     # First the creator id, then their embedding, then the average of their followers' initEmbeddings and age.
@@ -73,8 +74,9 @@ def get_training_dataset(creators, follows, listeners, users):
     user_ids = [ObjectId(user["_id"]) for user in users]
     dataset = [[listener, creator] for listener in user_ids for creator in user_ids if listener != creator]
 
-    creators = np.array(creators)
-    listeners = np.array(listeners)
+    creators = np.array(creators, dtype=object)
+    listeners = np.array(listeners, dtype=object)
+
     final_dataset_X = np.array([listeners[listeners[:, 0] == listener, 1:][0].tolist() \
         + creators[creators[:, 0] == creator, 1:][0].tolist() for listener, creator in dataset])
     final_dataset_y = [1 if [listener, creator] in follows else 0 for listener, creator in dataset ]
