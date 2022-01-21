@@ -34,7 +34,7 @@ def get_listeners(user_id):
     listener_list = [np.array(listener[:1] + listener[1] + [compute_age(listener[2])]).tolist()]
 
     # Find all the listeners and represent them as a list
-    users = [user for user in db.users.find({"_id": {"$nin": [ObjectId(user_id)]}})]
+    users = [user for user in db.users.find({"_id": {"$nin": [ObjectId(user_id)]}, "roles": {"$in": ["user"]}})]
     print(users)
     all_listeners = [list(dict_filter(user, listener_dict).values()) for user in users]
     all_listeners = [np.array(user[:1] + user[1] + [compute_age(user[2])]).tolist() for user in all_listeners]

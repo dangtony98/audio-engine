@@ -23,12 +23,14 @@ with open(DIR_PATH + '/src/services/word_embeddings/stopwords.pickle', 'rb') as 
 
 @app.task
 def background_transcribe(audio_ids):
+    i = 1
     for audio_id in audio_ids:
-        print("Transcribing an audio...")
+        print("Transcribing an audio... #" + str(i) + " out of " + str(len(audio_ids)))
         sounds = get_audio([audio_id])
 
         # Update/Insert the transcription into DB
         transcribe_audio(sounds, [audio_id])
+        i += 1
 
 
 MAX_API_LENGTH_MS = 30000
