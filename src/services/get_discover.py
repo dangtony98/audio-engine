@@ -24,7 +24,7 @@ def get_content_pool(user_id):
     """
 
     # get ids of seen ledges
-    seen_ids = [l["audio"] for l in db.listens.find({"user": ObjectId(user_id), "wordEmbedding": {"$exists":1}})]
+    seen_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id)})]
 
     # get ids of blocked users
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
@@ -34,12 +34,9 @@ def get_content_pool(user_id):
     unseen_pool = list(
         db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists":1}})
     )
-    seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
+    # seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
 
-    unseen_pool_xs = [a["embedding"] for a in unseen_pool]
-    seen_pool_xs = [a["embedding"] for a in seen_pool]
-
-    return seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs
+    return unseen_pool
 
 
 def get_sorted_content(user_x, content_pool, ratings):
@@ -69,9 +66,9 @@ def get_feed(user_id):
     user_x = get_user_x(user_id)
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
     embeddings_dict = load_embeddings()
-    user_preferences = np.array([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences])
+    user_preferences = np.mean([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences], axis=0)
 
-    seen_pool, seen_pool_xs, unseen_pool, unseen_pool_xs = get_content_pool(user_id)
+    unseen_pool = get_content_pool(user_id)
 
     # unseen_titles = [audio["title"] for audio in unseen_pool]
     # unseen_titles = [title.lower() for title in unseen_titles]
@@ -79,19 +76,16 @@ def get_feed(user_id):
     # unseen_titles = np.array([calculate_embedding(embeddings_dict, unseen_title) for unseen_title in unseen_titles])
     unseen_titles = np.array([audio["wordEmbedding"] for audio in unseen_pool])
 
-    mm = []
-    for preference in user_preferences:
-        mm.append([np.dot(preference, title) for title in unseen_titles])
-    dot_prod = np.mean(mm, axis=0)
-    dtype = [('_id', ObjectId), ('prob_to_listen', float)]
-    result = np.array(list(zip(np.array([audio["_id"] for audio in unseen_pool]), dot_prod)), dtype=dtype)
-    result = np.sort(result, order='prob_to_listen')[::INVERSE_ORDER]
-    print(result)
+    dot_prod = np.array([np.dot(user_preferences, title) for title in unseen_titles])
+    # dtype = [('_id', ObjectId), ('prob_to_listen', float)]
+    # result = np.array(list(zip(np.array([audio["_id"] for audio in unseen_pool]), dot_prod)), dtype=dtype)
+    # result = np.sort(result, order='prob_to_listen')[::INVERSE_ORDER]
+    # print(result)
 
     # sorted_seen_pool = get_sorted_content(user_x, seen_pool, seen_pool_xs)
     sorted_unseen_pool = get_sorted_content(user_x, unseen_pool, dot_prod)
 
-    feed = sorted_unseen_pool
+    feed = sorted_unseen_pool[:100]
     
     return feed
 
