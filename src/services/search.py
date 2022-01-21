@@ -18,7 +18,7 @@ dict_filter = lambda x, y: dict([(i,x[i]) for i in x if i in set(y)])
 
 def get_start_data():
     """
-    Query the id and title for all the audios. Potentially also hashtags
+    Query the ids and wordEmbeedings for all the audios
     """
     audios = [[audio["_id"], audio["wordEmbedding"]] for audio in list(db.audios.find({"wordEmbedding": {"$exists":1}}, {"wordEmbedding": 1}))]
     return audios
@@ -36,14 +36,13 @@ def load_embeddings_stopwords():
     return embeddings_dict, stopwords
 
 
-def convert_to_embeddings(title, embeddings_dict, stopwords):
+def convert_to_embedding(query):
     """
-    This function coverts every title (potentially consisting of multiple words) into word embeddings
-    It also disregards any stopwords
+    This function coverts the query (potentially consisting of multiple words) into word embeddings, and takes the mean of those
+    It also disregards any stopwords, and converts teh query to lowercase characters
     """
-    title = title.lower()
-    new_title = np.mean([embeddings_dict[word] for word in title.split() if (word not in stopwords) and (word in embeddings_dict)], axis=0)
-    return new_title
+    embeddings_query = np.mean([embeddings_dict[word] for word in query.lower().split() if (word not in stopwords) and (word in embeddings_dict)], axis=0)
+    return embeddings_query
 
 
 def clean_search_results(item):
@@ -62,12 +61,12 @@ def clean_search_results(item):
     return item
 
 
-def calc_distances(query, audios):
+def calculate_distances(query, audios):
     """
-    Calculate the mean cos distances betweed the words in query and the words in 
+    Calculate the mean cos distances betweed the query and the audio embeddings
     """
     # distances = [[audio[0], np.mean([spatial.distance.cosine(query_word, word) for query_word in query for word in audio[1]])] for audio in audios]
-    distances = [[audio[0], np.mean([spatial.distance.cosine(query, audio[1])])] for audio in audios]
+    distances = [[audio[0], spatial.distance.cosine(query, audio[1])] for audio in audios]
     return distances
 
 
@@ -75,9 +74,8 @@ def sort_ascending(distances):
     """
     Sort every audio from the smallest to the largest mean distance
     """
-    audio_ids = set(map(lambda x:x[0], distances))
-    mean_distances = [[id, np.mean([audio[1] for audio in distances if audio[0]==id])] for id in audio_ids]
-    mean_distances = sorted([[id, np.mean([audio[1] for audio in mean_distances if audio[0]==id])] for id in audio_ids], key=itemgetter(1))
+    # Getting the unique set of audio_ids that we need to rank
+    mean_distances = sorted(distances, key=itemgetter(1))
     return mean_distances
 
 
@@ -85,7 +83,7 @@ def get_audio_data(sorted_mean_distances):
     """
     Get the data for selected audios
     """
-    ranking = [distance[0] for distance in sorted_mean_distances][0:30]
+    ranking = [distance[0] for distance in sorted_mean_distances]
     search_results = list(db.audios.find({"_id": {"$in": ranking}}))
     return search_results, ranking
 
@@ -101,19 +99,16 @@ def order_search_results(search_results, ranking):
 
 
 def get_search_audio_resuls(query):
-    # Query the data and load everything 
+    # Query the data consisting of potential 
     audios = get_start_data()
-    # embeddings_dict, stopwords = load_embeddings_stopwords()
 
     # Convert audios and the query to word embeddings amd remove stopwords
     # audios = [[audio[0], convert_to_embeddings(audio[1], embeddings_dict, stopwords)] for audio in audios]
-    query = convert_to_embeddings(query, embeddings_dict, stopwords)
+    query = convert_to_embedding(query)
 
     # Calculate mean cosine distanecs between each word of the query and each word in the titles of audios
-    mean_distances = calc_distances(query, audios)
-    print(mean_distances)
+    mean_distances = calculate_distances(query, audios)
     sorted_mean_distances = sort_ascending(mean_distances)[0:NUMBER_OF_SEARCH_RESULTS]
-    print(sorted_mean_distances)
 
     # Get the data for the necessary audios and sort it in the right way
     search_results, ranking = get_audio_data(sorted_mean_distances)
