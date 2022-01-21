@@ -44,11 +44,16 @@ def get_audio(audio_ids):
     for url in urls: 
         req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         mp3file = urlopen(req)
-        with open('./initial.mp3','wb') as output:
-            output.write(mp3file.read())
-
-        sounds.append(AudioSegment.from_mp3("./initial.mp3"))
-        os.remove("initial.mp3")
+        try:
+            with open('./initial.mp3','wb') as output:
+                output.write(mp3file.read())
+                sounds.append(AudioSegment.from_file("./initial.mp3"))
+                os.remove("initial.mp3")
+        except:
+            with open('./initial.m4a','wb') as output:
+                output.write(mp3file.read())
+                sounds.append(AudioSegment.from_file("./initial.m4a"))
+                os.remove("initial.m4a")
     return sounds
 
 
