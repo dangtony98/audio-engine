@@ -23,14 +23,18 @@ with open(DIR_PATH + '/src/services/word_embeddings/stopwords.pickle', 'rb') as 
 
 @app.task
 def background_transcribe(audio_ids):
-    i = 1
+    i = 0
     for audio_id in audio_ids:
-        print("Transcribing an audio... #" + str(audio_id) + ": " + str(i) + " out of " + str(len(audio_ids)))
-        sounds = get_audio([audio_id])
+        try: 
+            i += 1
+            print("Transcribing an audio... #" + str(audio_id) + ": " + str(i) + " out of " + str(len(audio_ids)))
+            sounds = get_audio([audio_id])
 
-        # Update/Insert the transcription into DB
-        transcribe_audio(sounds, [audio_id])
-        i += 1
+            # Update/Insert the transcription into DB
+            transcribe_audio(sounds, [audio_id])
+            i += 1
+        except:
+            print("!!!!! Transcription Failed - " + str(audio_id))
 
 
 MAX_API_LENGTH_MS = 30000
@@ -43,17 +47,17 @@ def get_audio(audio_ids):
     sounds = []
     for url in urls: 
         req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        mp3file = urlopen(req)
+        file = urlopen(req)
         try:
             PATH = './initial" + str(audio_ids[0]) + ".mp3'
             with open(PATH,'wb') as output:
-                output.write(mp3file.read())
+                output.write(file.read())
                 sounds.append(AudioSegment.from_file(PATH))
                 os.remove(PATH)
         except:
             PATH = './initial" + str(audio_ids[0]) + ".m4a'
             with open(PATH,'wb') as output:
-                output.write(mp3file.read())
+                output.write(file.read())
                 sounds.append(AudioSegment.from_file(PATH))
                 os.remove(PATH)
     return sounds
@@ -66,7 +70,7 @@ def transcribe_audio(sounds, audio_ids):
         text = ""
         # Need to split the audio into pieces of 30 sec max because of the API limits
         for i in range(len(sounds[sound_num])//MAX_API_LENGTH_MS + 1):
-            print("Segment" + str(i))
+            print("Segment " + str(i))
             sounds[sound_num][i*MAX_API_LENGTH_MS:(i+1)*MAX_API_LENGTH_MS].export(audio_ids[sound_num] + str(i) + ".wav", format="wav")
                 
             with sr.AudioFile(audio_ids[sound_num] + str(i) + ".wav") as source:
