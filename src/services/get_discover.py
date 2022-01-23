@@ -32,7 +32,7 @@ def get_content_pool(user_id):
     blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}})]
 
     unseen_pool = list(
-        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists":1}})
+        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists": 1}}, {"wordEmbedding": 1, "user": 1})
     )
     # seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
 
