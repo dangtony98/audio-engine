@@ -32,7 +32,6 @@ def background_transcribe(audio_ids):
 
             # Update/Insert the transcription into DB
             transcribe_audio(sounds, [audio_id])
-            i += 1
         except:
             print("!!!!! Transcription Failed - " + str(audio_id))
 

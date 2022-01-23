@@ -3,7 +3,7 @@ from bson.objectid import ObjectId
 import numpy as np
 from cvxpy import *
 from app import db
-from datetime import datetime
+from datetime import datetime, timezone
 import pickle
 import os
 
@@ -60,7 +60,7 @@ def get_feed(user_id):
     """
 
     PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
-        'health fitness', 'sports', 'do it yourself', 'true crime', 'dating', 'parenting', 'food', 'travel', 
+        'health fitness sport', 'sports', 'do it yourself', 'true crime', 'dating', 'parenting', 'food', 'travel', 
         'languages', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
         'tech', 'finance investing', 'politics', 'news']
     user_x = get_user_x(user_id)
@@ -84,8 +84,15 @@ def get_feed(user_id):
 
     # sorted_seen_pool = get_sorted_content(user_x, seen_pool, seen_pool_xs)
     sorted_unseen_pool = get_sorted_content(user_x, unseen_pool, dot_prod)
+    creators = {audio["user"]: 0 for audio in sorted_unseen_pool}
 
-    feed = sorted_unseen_pool[:100]
+    def diversity_threshold_check(user_id):
+        creators[user_id] += 1
+        if creators[user_id] <= 20: 
+            return True
+        return False
+    
+    feed = [audio for audio in sorted_unseen_pool if diversity_threshold_check(audio["user"])][:100]
     
     return feed
 
@@ -129,7 +136,7 @@ def update_feed(user_id, feed_name, feed):
     values = {}
     values[feed_name] = [item["_id"] for item in feed]
     values["user"] = ObjectId(user_id)
-    values["createdAt"] = datetime.now()
+    values["createdAt"] = datetime.now(timezone.utc)
     # new_values = {"$set": values}
 
     # db.feeds.update_one(filter, new_values, upsert=True)
