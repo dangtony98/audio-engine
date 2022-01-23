@@ -32,7 +32,8 @@ def get_content_pool(user_id):
     blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}})]
 
     unseen_pool = list(
-        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists": 1}}, {"wordEmbedding": 1, "user": 1})
+        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists": 1}}, 
+        {"title": 1, "url": 1, "user": 1, "createdAt": 1, "duration":1, "publishedAt": 1, "rss": 1, "wordEmbedding": 1})
     )
     # seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
 
@@ -154,7 +155,7 @@ def clean_output(pool):
         try:
             item["rss"] = str(item["rss"])
         except KeyError:
-            print("The user" + item["_id"]  + "has no attribute rss")
+            print("The user audio" + item["_id"]  + " has no attribute rss")
         return item
 
     return [clean(item) for item in pool]
