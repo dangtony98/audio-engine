@@ -20,7 +20,9 @@ def get_start_data():
     """
     Query the ids and wordEmbeedings for all the audios
     """
+    print("Start1")
     audios = [[audio["_id"], audio["wordEmbedding"]] for audio in list(db.audios.find({"wordEmbedding": {"$exists":1}}, {"wordEmbedding": 1}))]
+    print("Finish1")
     return audios
 
 
@@ -84,7 +86,8 @@ def get_audio_data(sorted_mean_distances):
     Get the data for selected audios
     """
     ranking = [distance[0] for distance in sorted_mean_distances]
-    search_results = list(db.audios.find({"_id": {"$in": ranking}}))
+    search_results = list(db.audios.find({"_id": {"$in": ranking}}, 
+                        {"title": 1, "url": 1, "user": 1, "duration":1, "rss": 1, "listens": 1}))
     return search_results, ranking
 
 
@@ -109,6 +112,7 @@ def get_search_audio_resuls(query):
     # Calculate mean cosine distanecs between each word of the query and each word in the titles of audios
     mean_distances = calculate_distances(query, audios)
     sorted_mean_distances = sort_ascending(mean_distances)[0:NUMBER_OF_SEARCH_RESULTS]
+    print(len(sorted_mean_distances))
 
     # Get the data for the necessary audios and sort it in the right way
     search_results, ranking = get_audio_data(sorted_mean_distances)

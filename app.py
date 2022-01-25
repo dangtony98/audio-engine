@@ -72,18 +72,30 @@ def transcribe():
     """
     insert the audio text transcription into DB
     """
-    request_data = request.get_json()
-    audio_ids = request_data['audio_ids']
-    
-    # If needed to transcribe all the missing ones
-    # audio_ids = [str(audio["_id"]) for audio in db.audios.find({"transcription": {"$exists": False}})]
+    CASE = 'QUERY'
+    if CASE == 'REQUEST':
+        request_data = request.get_json()
+        audio_ids = request_data['audio_ids']
+        print("To transcribe:", audio_ids)
+        background_transcribe.delay(audio_ids)
+    elif CASE == 'QUERY':
+        # If needed to transcribe all the missing ones
+        # 61eb5776870ee40004502929
+        # 61eb53de870ee40004502928
+        # 61ecc67e4a9ce00004470bb6 - robot
+        audio_ids = [str(audio["_id"]) for audio in db.audios.find({"transcription": {"$exists": False}})][1000:]
+        print("To transcribe:", audio_ids)
+        THREADS = 1
+        for i in range(THREADS):
+            import time
+            background_transcribe.delay(audio_ids[int(len(audio_ids)*i/THREADS): int(len(audio_ids)*(i+1)/THREADS)])
+            time.sleep(10)
 
-    print("To transcribe:", audio_ids)
-    background_transcribe.delay(audio_ids)
+    
     # for audio_id in audio_ids:
     #     background_transcribe.delay([audio_id])
 
-    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
+    return json.dumps({"success": True}), 202, {"ContentType": "application/json"}
 
 
 @app.route("/update_creator_embeddings/<string:user_id>", methods=["POST"])
