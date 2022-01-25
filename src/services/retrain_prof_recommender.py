@@ -4,7 +4,7 @@ import numpy as np
 from bson.objectid import ObjectId
 import pickle    
 import os 
-from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
 
 NUMBER_OF_CREATORS_TO_RECOMMEND = 20
 INVERSE_ORDER = -1
@@ -89,13 +89,14 @@ def generate_model(final_dataset_X, final_dataset_y):
     WATCH_OUT: this will overwrite the previous model, and imemdiately start using the new one.
     """
     # Create the model itself
-    clf = RandomForestClassifier(max_depth=2, random_state=0)
-    clf.fit(final_dataset_X, final_dataset_y)
-    print(clf.predict_proba(final_dataset_X))
+    # clf = RandomForestClassifier(max_depth=2, random_state=0)
+    # clf.fit(final_dataset_X, final_dataset_y)
+    # print(clf.predict_proba(final_dataset_X))
 
-    # Pickle the model
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    pickle.dump(clf, open(dir_path + "/models/random_forest.pickle", 'wb'))
+    # # Pickle the model
+    # dir_path = os.path.dirname(os.path.realpath(__file__))
+    # pickle.dump(clf, open(dir_path + "/models/random_forest.pickle", 'wb'))
+    pass
 
 
 def train_model():
