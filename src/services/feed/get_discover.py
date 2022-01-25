@@ -112,7 +112,7 @@ def delete_stopwords(audio_transcriptions):
     """
     Delete stopwords from the audio transcriptions (a, the, and, etc.)
     """
-    with open(DIR_PATH + '/word_embeddings/stopwords.pickle', 'rb') as handle:
+    with open(DIR_PATH + '/../word_embeddings/stopwords.pickle', 'rb') as handle:
         stopwords = pickle.load(handle)
     transcriptions_without_stop_words = " ".join([word for word in audio_transcriptions.split() if not word in stopwords])
     return transcriptions_without_stop_words

@@ -30,9 +30,9 @@ def load_embeddings_stopwords():
     """
     This function loads the previously pickled word embeddings and stopwords
     """
-    with open(DIR_PATH + '/word_embeddings/stopwords.pickle', 'rb') as handle:
+    with open(DIR_PATH + '/../word_embeddings/stopwords.pickle', 'rb') as handle:
         stopwords = pickle.load(handle)
-    with open(DIR_PATH + '/word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
+    with open(DIR_PATH + '/../word_embeddings/embeddings_twitter.pickle', 'rb') as handle:
         embeddings_dict = pickle.load(handle)
 
     return embeddings_dict, stopwords
