@@ -122,7 +122,7 @@ def load_embeddings():
     """
     Load teh previously pickled embeddings
     """
-    with open(DIR_PATH + '/word_embeddings/preference_embeddings_twitter.pickle', 'rb') as handle:
+    with open(DIR_PATH + '/../word_embeddings/preference_embeddings_twitter.pickle', 'rb') as handle:
         embeddings_dict = pickle.load(handle)
     return embeddings_dict
 
