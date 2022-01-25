@@ -14,13 +14,13 @@ app = Flask(__name__)
 #     client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
 #     db = client.audio_testing
 
-from src.services.train_xs import *
-from src.services.get_discover import *
+from services.feed.train_xs import *
+from services.feed.get_discover import *
 from src.services.transcribe import *
 from src.services.get_prof_recs import *
 from src.services.retrain_prof_recommender import *
 from src.services.update_creator_embedding import *
-from src.services.search import *
+from services.search.search import *
 from src.middleware.middleware import *
 from tasks import background_transcribe
 
