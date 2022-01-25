@@ -14,7 +14,6 @@ app = Flask(__name__)
 #     client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
 #     db = client.audio_testing
 
-from services.feed.train_xs import *
 from services.feed.get_discover import *
 from src.services.transcribe import *
 from src.services.get_prof_recs import *
@@ -25,30 +24,6 @@ from src.middleware.middleware import *
 from tasks import background_transcribe
 
 app.wsgi_app = Middleware(app.wsgi_app)
-
-
-@app.route("/train-xs", methods=["POST"])
-def train_xs():
-    """
-    train all audio and user embeddings where ratings exist by non-zero users
-    goal: train accurate latent audio embeddings
-
-    TO-DO 1: disregard ratings where user embeddings are the zero vector to obtain
-    precise audio embeddings
-
-    TO-DO 2: add eval
-    """
-
-    # train
-    ratings, userIds, audioIds = get_ratings_userids_audioids()
-    users_P, audios_Q = solve_Q_P(audioIds, userIds, ratings, 2)
-    ps_xs = extract_embeddings(userIds, users_P)
-    qs_xs = extract_embeddings(audioIds, audios_Q)
-
-    # bulk write
-    bulkWriteEmbeddings(ps_xs, db.users)
-    bulkWriteEmbeddings(qs_xs, db.audios)
-    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
 
 @app.route("/get_discover/<string:user_id>", methods=["GET"])
@@ -72,7 +47,7 @@ def transcribe():
     """
     insert the audio text transcription into DB
     """
-    CASE = 'QUERY'
+    CASE = 'REQUEST'
     if CASE == 'REQUEST':
         request_data = request.get_json()
         audio_ids = request_data['audio_ids']
@@ -80,10 +55,7 @@ def transcribe():
         background_transcribe.delay(audio_ids)
     elif CASE == 'QUERY':
         # If needed to transcribe all the missing ones
-        # 61eb5776870ee40004502929
-        # 61eb53de870ee40004502928
-        # 61ecc67e4a9ce00004470bb6 - robot
-        audio_ids = [str(audio["_id"]) for audio in db.audios.find({"transcription": {"$exists": False}})][1000:]
+        audio_ids = [str(audio["_id"]) for audio in db.audios.find({"transcription": {"$exists": False}})]
         print("To transcribe:", audio_ids)
         THREADS = 1
         for i in range(THREADS):
