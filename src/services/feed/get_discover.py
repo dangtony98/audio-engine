@@ -1,4 +1,3 @@
-from ..variables import PREF_TO_INDEX
 from bson.objectid import ObjectId
 import numpy as np
 from cvxpy import *
