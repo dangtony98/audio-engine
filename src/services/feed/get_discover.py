@@ -98,7 +98,7 @@ def get_feed(user_id):
 
     def diversity_threshold_check(user_id):
         creators[user_id] += 1
-        if creators[user_id] <= 20: 
+        if creators[user_id] <= 12: 
             return True
         return False
     

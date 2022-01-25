@@ -48,13 +48,13 @@ def get_audio(audio_ids):
         req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         file = urlopen(req)
         try:
-            PATH = './initial" + str(audio_ids[0]) + ".mp3'
+            PATH = './initial' + str(audio_ids[0]) + '.mp3'
             with open(PATH,'wb') as output:
                 output.write(file.read())
                 sounds.append(AudioSegment.from_file(PATH))
                 os.remove(PATH)
         except:
-            PATH = './initial" + str(audio_ids[0]) + ".m4a'
+            PATH = './initial' + str(audio_ids[0]) + '.m4a'
             with open(PATH,'wb') as output:
                 output.write(file.read())
                 sounds.append(AudioSegment.from_file(PATH))
