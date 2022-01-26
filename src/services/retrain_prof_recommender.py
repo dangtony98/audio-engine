@@ -4,7 +4,18 @@ from bson.objectid import ObjectId
 import pickle    
 import os 
 from sklearn.ensemble import RandomForestClassifier
-from utils import compute_age
+# from utils import compute_age
+from datetime import date
+def compute_age(birthdate):
+    """
+    Compute age given the person's birthdate
+    """
+    try:
+        today = date.today()
+        age = today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
+    except:
+        age = 0
+    return age
 
 NUMBER_OF_CREATORS_TO_RECOMMEND = 20
 INVERSE_ORDER = -1
