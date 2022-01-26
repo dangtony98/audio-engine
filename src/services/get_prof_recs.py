@@ -1,9 +1,9 @@
 from app import db
-from datetime import date
 import numpy as np
 from bson.objectid import ObjectId
 import pickle    
 import os 
+from utils import compute_age
 
 NUMBER_OF_CREATORS_TO_RECOMMEND = 20
 INVERSE_ORDER = -1
@@ -12,18 +12,6 @@ PROB_INDEX = 1
 
 
 dict_filter = lambda x, y: dict([(i,x[i]) for i in x if i in set(y)])
-
-
-def compute_age(birthdate):
-    """
-    Compute age given the person's birthdate
-    """
-    try:
-        today = date.today()
-        age = today.year - birthdate.year - ((today.month, today.day) < (birthdate.month, birthdate.day))
-    except:
-        age = 0
-    return age
 
 
 def get_listeners(user_id):
