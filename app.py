@@ -4,15 +4,15 @@ from numpy import NaN, e
 from pymongo import MongoClient
 import json
 import os
+import redis
 from client import db, client
 
 app = Flask(__name__)
-# if os.environ.get("ENV") == "production":
-#     client = MongoClient(os.environ.get("MONGO_PRODUCTION_URI"), tls=True, tlsAllowInvalidCertificates=True)
-#     db = client.audio
-# else:
-#     client = MongoClient(os.environ.get("MONGO_DEVELOPMENT_URI"), tls=True, tlsAllowInvalidCertificates=True)
-#     db = client.audio_testing
+
+r = redis.Redis(host=os.environ.get("REDIS_HOST"), 
+                port=os.environ.get("REDIS_PORT"), 
+                password=os.environ.get("REDIS_PASSWORD"),
+                decode_responses=True)
 
 from src.services.feed.get_discover import *
 from src.services.transcribe import *

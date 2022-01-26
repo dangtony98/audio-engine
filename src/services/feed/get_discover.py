@@ -5,9 +5,14 @@ from app import db
 from datetime import datetime, timezone
 import pickle
 import os
+from app import r
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
+PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
+            'health fitness sport', 'sports', 'do it yourself', 'true crime', 'dating', 'parenting', 'food', 'travel', 
+            'languages', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
+            'tech', 'finance investing', 'politics', 'news']
 
 
 def get_user_x(user_id):
@@ -17,94 +22,124 @@ def get_user_x(user_id):
     return list(db.users.find({"_id": ObjectId(user_id)}))[0]["initEmbedding"]
 
 
-def get_content_pool(user_id):
+def get_content_pool(user_id, redis_ids):
     """
     Returns a content pool of ids to consider and their repective embeddings
     """
-    print("1")
     # get ids of seen ledges
     seen_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id)})]
-    print("2")
+
     # get ids of blocked users
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
-    print("3")
+
     # get ids of blocked content
     blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}})]
-    print("4")
+
     unseen_pool = list(
-        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids))}, "wordEmbedding": {"$exists": 1}}, 
-        {"title": 1, "url": 1, "user": 1, "duration": 1, "listens": 1, "wordEmbedding": 1})
+        db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids) | set(redis_ids))}, "wordEmbedding": {"$exists": 1}}, 
+        {"wordEmbedding": 1})
     )
-        # "title": 1, "url": 1, "user": 1, "createdAt": 1, "duration":1, "publishedAt": 1, "rss": 1, "listens": 1, 
-    # print(db.audios.stats())
-    # print(len(bson.BSON.encode(unseen_pool)))
-    # unseen_pool.to_csv("check2.csv")
-    # print(unseen_pool)
-    # seen_pool = list(db.audios.find({"_id": {"$in": seen_ids, "$nin": blocked_ids}}))
-    print("5")
-    return unseen_pool
+    see_ids = [str(id) for id in seen_ids]
+    return unseen_pool, seen_ids
 
 
-def get_sorted_content(user_x, content_pool, ratings):
+def get_sorted_content(mongo_scores, unseen_redis_scores):
     """
-    Return sorted content ratings
+    Return sorted content ids
     """
 
-    if not content_pool:
-        # case: [content_pool] is empty
-        return content_pool
+    scores = dict(mongo_scores, **unseen_redis_scores)
+    sorted_scores = {k: v for k, v in sorted(scores.items(), key=lambda item: -item[1])[:100]}
+    sorted_scores_keys = [ObjectId(id) for id in sorted_scores.keys()]
+    return sorted_scores_keys
 
-    # ratings = np.dot(np.array(content_pool_xs), np.array(user_x))
-    sort_idx = ratings.argsort()
 
-    return list(np.array(content_pool)[sort_idx[::-1]])
+def get_redis_scores(user_id):
+    """
+    Gets all the cached scores (corresponding to audios) for a certain user
+    """
+    try:
+        redis_scores = r.hgetall(user_id)
+    except Exception as e: 
+        redis_scores = {}
+        print(e)
+    redis_ids = redis_scores.keys()
+    return redis_scores, redis_ids
+
+
+def get_user_preference_vector(user_id):
+    """
+    Gets user's init embedding and converts it to the the average of word embeddings
+    """
+    user_x = get_user_x(user_id)
+    user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
+    embeddings_dict = load_embeddings()
+    user_preferences = np.mean([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences], axis=0)
+    return user_preferences
+
+
+def send_to_redis(user_id, mongo_scores):
+    """
+    Sends the new scores to redis if there is anything to send
+    """
+    try: 
+        if len(mongo_scores) > 0:
+            r.hmset(user_id, mongo_scores)
+    except Exception as e: 
+        print(e)
+
+
+def get_data(sorted_scores_keys):
+    """
+    Gets the data from Mongo for selected audios
+    """
+    feed = list(
+        db.audios.find({"_id": {"$in": sorted_scores_keys}}, 
+        {"title": 1, "url": 1, "user": 1, "duration":1, "listens": 1})
+    )
+    return feed
 
 
 def get_feed(user_id):
     """
     gets the discovery feed for user with id [user_id]
     """
+    # Get user's pereferences
+    user_preferences = get_user_preference_vector(user_id)
 
-    PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
-        'health fitness sport', 'sports', 'do it yourself', 'true crime', 'dating', 'parenting', 'food', 'travel', 
-        'languages', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
-        'tech', 'finance investing', 'politics', 'news']
-    user_x = get_user_x(user_id)
-    user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
-    embeddings_dict = load_embeddings()
-    user_preferences = np.mean([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences], axis=0)
-
-    unseen_pool = get_content_pool(user_id)
-    print("6")
-    # unseen_titles = [audio["title"] for audio in unseen_pool]
-    # unseen_titles = [title.lower() for title in unseen_titles]
-    # unseen_titles = [delete_stopwords(title) for title in unseen_titles]
-    # unseen_titles = np.array([calculate_embedding(embeddings_dict, unseen_title) for unseen_title in unseen_titles])
-    unseen_titles = np.array([audio["wordEmbedding"] for audio in unseen_pool])
-    print("7")
-
-    dot_prod = np.array([np.dot(user_preferences, title) for title in unseen_titles])
-    # dtype = [('_id', ObjectId), ('prob_to_listen', float)]
-    # result = np.array(list(zip(np.array([audio["_id"] for audio in unseen_pool]), dot_prod)), dtype=dtype)
-    # result = np.sort(result, order='prob_to_listen')[::INVERSE_ORDER]
-    # print(result)
-    print("8")
-
-    # sorted_seen_pool = get_sorted_content(user_x, seen_pool, seen_pool_xs)
-    sorted_unseen_pool = get_sorted_content(user_x, unseen_pool, dot_prod)
-    print("9")
-    creators = {audio["user"]: 0 for audio in sorted_unseen_pool}
-    print("10")
-
-    def diversity_threshold_check(user_id):
-        creators[user_id] += 1
-        if creators[user_id] <= 12: 
-            return True
-        return False
+    # Get the data cached in Redis; ids = ids of cached audios; scores = ids & scores
+    redis_scores, redis_ids = get_redis_scores(user_id)
     
-    feed = [audio for audio in sorted_unseen_pool if diversity_threshold_check(audio["user"])][:100]
-    print("11")
+    # Query from DB everything besides the ids cached in Redis
+    unseen_pool, seen_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids])
+
+    # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
+    unseen_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if key not in seen_ids}
+    unseen_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in unseen_pool}
+    mongo_scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in unseen_embeddings.items()}
+
+    # Send the new scores to redis
+    send_to_redis(user_id, mongo_scores)
+
+    # Rank audios and take the first 100
+    sorted_scores_keys = get_sorted_content(mongo_scores, unseen_redis_scores)
+
+    # Query the data for those 100 audios from Mongo
+    feed = get_data(sorted_scores_keys)
+
+    # Sort data in the same order
+    order_dict = {_id: index for index, _id in enumerate(sorted_scores_keys)}
+    feed.sort(key=lambda x: order_dict[x["_id"]])
     
+    # TODO: Add user if I want to have more diversity
+    # creators = {audio["user"]: 0 for audio in sorted_unseen_pool}
+    # def diversity_threshold_check(user_id):
+    #     creators[user_id] += 1
+    #     if creators[user_id] <= 12: 
+    #         return True
+    #     return False
+    # feed = [audio for audio in sorted_unseen_pool if diversity_threshold_check(audio["user"])][:100]
+
     return feed
 
 
@@ -129,7 +164,7 @@ def load_embeddings():
 
 def calculate_embedding(embeddings_dict, words):
     """
-    Calculate creator embeddings by putting them through word embeddings or making them 0's if those don't exist
+    Calculate creator embeddings by putting them through word embeddings or making them 0's if those don't exist (taking a mean)
     """
     creator_embedding = np.mean([embeddings_dict[word] for word in words.split() if word in embeddings_dict], axis=0).tolist()
     if creator_embedding != creator_embedding:
@@ -162,10 +197,6 @@ def clean_output(pool):
     def clean(item):
         item["_id"] = str(item["_id"])
         item["user"] = str(item["user"])
-        try:
-            item["rss"] = str(item["rss"])
-        except KeyError:
-            print("The user audio" + item["_id"]  + " has no attribute rss")
         return item
 
     return [clean(item) for item in pool]
