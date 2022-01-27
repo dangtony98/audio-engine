@@ -3,9 +3,9 @@ import numpy as np
 from cvxpy import *
 from app import db
 from datetime import datetime, timezone
-import pickle
 import os
 from app import r
+from ..utils import calculate_embedding
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
@@ -73,8 +73,7 @@ def get_user_preference_vector(user_id):
     """
     user_x = get_user_x(user_id)
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
-    embeddings_dict = load_embeddings()
-    user_preferences = np.mean([calculate_embedding(embeddings_dict, user_preference) for user_preference in user_preferences], axis=0)
+    user_preferences = np.mean([calculate_embedding(user_preference) for user_preference in user_preferences], axis=0)
     return user_preferences
 
 
@@ -143,41 +142,12 @@ def get_feed(user_id):
     return feed
 
 
-def delete_stopwords(audio_transcriptions):
-    """
-    Delete stopwords from the audio transcriptions (a, the, and, etc.)
-    """
-    with open(DIR_PATH + '/../word_embeddings/stopwords.pickle', 'rb') as handle:
-        stopwords = pickle.load(handle)
-    transcriptions_without_stop_words = " ".join([word for word in audio_transcriptions.split() if not word in stopwords])
-    return transcriptions_without_stop_words
-
-
-def load_embeddings():
-    """
-    Load teh previously pickled embeddings
-    """
-    with open(DIR_PATH + '/../word_embeddings/preference_embeddings_twitter.pickle', 'rb') as handle:
-        embeddings_dict = pickle.load(handle)
-    return embeddings_dict
-
-
-def calculate_embedding(embeddings_dict, words):
-    """
-    Calculate creator embeddings by putting them through word embeddings or making them 0's if those don't exist (taking a mean)
-    """
-    creator_embedding = np.mean([embeddings_dict[word] for word in words.split() if word in embeddings_dict], axis=0).tolist()
-    if creator_embedding != creator_embedding:
-        creator_embedding = [0] * 25
-    return creator_embedding
-
-
 def update_feed(user_id, feed_name, feed):
     """
     update feed named [feed_name] for user with id [user_id]
     """
 
-    filter = {"user": ObjectId(user_id)}
+    # filter = {"user": ObjectId(user_id)}
 
     values = {}
     values[feed_name] = [item["_id"] for item in feed]
@@ -187,16 +157,3 @@ def update_feed(user_id, feed_name, feed):
 
     # db.feeds.update_one(filter, new_values, upsert=True)
     db.feeds.insert_one(values)
-
-
-def clean_output(pool):
-    """
-    clean [pool] to be compatible with Flask's jsonify
-    """
-
-    def clean(item):
-        item["_id"] = str(item["_id"])
-        item["user"] = str(item["user"])
-        return item
-
-    return [clean(item) for item in pool]

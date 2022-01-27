@@ -1,22 +1,21 @@
 from logging import error
 from flask import Flask, jsonify, request
-from numpy import NaN, e
-from pymongo import MongoClient
 import json
 import os
 import redis
-from client import db, client
+from client import db
+from src.services.utils import clean_output
 
 app = Flask(__name__)
 
 r = redis.Redis(host=os.environ.get("REDIS_HOST"), 
-                port=os.environ.get("REDIS_PORT"), 
+                port=os.environ.get("REDIS_PORT"),
                 password=os.environ.get("REDIS_PASSWORD"),
                 decode_responses=True)
 
 from src.services.feed.get_discover import *
 from src.services.transcribe import *
-from src.services.get_prof_recs import *
+from src.services.feed_recs.get_prof_recs import *
 from src.services.retrain_prof_recommender import *
 from src.services.update_creator_embedding import *
 from src.services.search.search import *
