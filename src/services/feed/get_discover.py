@@ -10,9 +10,10 @@ from ..utils import calculate_embedding
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
 PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
-            'health fitness sport', 'sports', 'do it yourself', 'true crime', 'dating', 'parenting', 'food', 'travel', 
-            'languages', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
+            'health fitness sport', 'sports', 'diy', 'true crime', 'fiction', 'dating', 'parenting', 'food', 'travel', 
+            'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
             'tech', 'finance investing', 'politics', 'news']
+OPTION = "AVG"
 
 
 def get_user_x(user_id):
@@ -33,7 +34,7 @@ def get_content_pool(user_id, redis_ids):
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
 
     # get ids of blocked content
-    blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}})]
+    blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}}, {"_id": 1})]
 
     unseen_pool = list(
         db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids) | set(redis_ids))}, "wordEmbedding": {"$exists": 1}}, 
@@ -73,7 +74,10 @@ def get_user_preference_vector(user_id):
     """
     user_x = get_user_x(user_id)
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
-    user_preferences = np.mean([calculate_embedding(user_preference) for user_preference in user_preferences], axis=0)
+    if OPTION == "AVG":
+        user_preferences = np.mean([calculate_embedding(user_preference) for user_preference in user_preferences], axis=0)
+    elif OPTION == "MAX": 
+        user_preferences = [calculate_embedding(user_preference) for user_preference in user_preferences]
     return user_preferences
 
 
@@ -115,7 +119,10 @@ def get_feed(user_id):
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
     unseen_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if key not in seen_ids}
     unseen_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in unseen_pool}
-    mongo_scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in unseen_embeddings.items()}
+    if OPTION == "AVG":
+        mongo_scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in unseen_embeddings.items()}
+    elif OPTION == "MAX":
+        mongo_scores = {str(episode_id): np.max([np.dot(user_preference, episode_embedding) for user_preference in user_preferences]) for episode_id, episode_embedding in unseen_embeddings.items()}
 
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)

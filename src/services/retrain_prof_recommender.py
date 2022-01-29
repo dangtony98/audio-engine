@@ -56,8 +56,8 @@ def get_creators(all_listeners, all_users):
         # Collect all the followers' listening data 
         followers_data = [listener[1:] for listener in all_listeners if listener[0] in followers]
         if len(followers_data) == 0:
-            # 28 initial preferences + 1 age variable
-            followers_data = [np.zeros(29)]
+            # 30 initial preferences + 1 age variable
+            followers_data = [np.zeros(31)]
         followers_data_full += [np.mean(followers_data, axis=0)]
 
     # First the creator id, then their embedding, then the average of their followers' initEmbeddings and age.
