@@ -28,10 +28,10 @@ def background_transcribe(audio_ids):
         try: 
             i += 1
             print("Transcribing an audio... #" + str(audio_id) + ": " + str(i) + " out of " + str(len(audio_ids)))
-            sounds = get_audio([audio_id])
+            sounds = get_audio(audio_id)
 
             # Update/Insert the transcription into DB
-            transcribe_audio(sounds, [audio_id])
+            transcribe_audio(sounds, audio_id)
         except:
             print("!!!!! Transcription Failed - " + str(audio_id))
 
@@ -39,22 +39,25 @@ def background_transcribe(audio_ids):
 MAX_API_LENGTH_MS = 30000
 
 
-def get_audio(audio_ids):
-    audio_ids = [ObjectId(audio_id) for audio_id in audio_ids]
-    urls = [audio["url"] for audio in db.audios.find({"_id": {"$in": audio_ids}})]
-    
+def get_audio(audio_id):
+    print(audio_id)
+    try:
+        urls = [audio["url"] for audio in db.audios.find({"_id": ObjectId(audio_id)}, {"url": 1})]
+    except Exception as e:
+        # Strange "connection pool paused" error
+        print("ERROR", e)
     sounds = []
     for url in urls: 
         req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         file = urlopen(req)
         try:
-            PATH = './initial' + str(audio_ids[0]) + '.mp3'
+            PATH = './initial' + audio_id + '.mp3'
             with open(PATH,'wb') as output:
                 output.write(file.read())
                 sounds.append(AudioSegment.from_file(PATH))
                 os.remove(PATH)
         except:
-            PATH = './initial' + str(audio_ids[0]) + '.m4a'
+            PATH = './initial' + audio_id + '.m4a'
             with open(PATH,'wb') as output:
                 output.write(file.read())
                 sounds.append(AudioSegment.from_file(PATH))
@@ -62,37 +65,46 @@ def get_audio(audio_ids):
     return sounds
 
 
-def transcribe_audio(sounds, audio_ids):
+def transcribe_audio(sounds, audio_id):
     r = sr.Recognizer()
 
     for sound_num in range(len(sounds)): 
         text = ""
         # Need to split the audio into pieces of 30 sec max because of the API limits
-        for i in range(len(sounds[sound_num])//MAX_API_LENGTH_MS + 1):
-            print("Segment " + str(i))
-            sounds[sound_num][i*MAX_API_LENGTH_MS:(i+1)*MAX_API_LENGTH_MS].export(audio_ids[sound_num] + str(i) + ".wav", format="wav")
-                
-            with sr.AudioFile(audio_ids[sound_num] + str(i) + ".wav") as source:
-                audio_text = r.listen(source)
+        NUMBER_OF_SEGMENTS = len(sounds[sound_num])//MAX_API_LENGTH_MS + 1
+        if NUMBER_OF_SEGMENTS <= 30:
+            for i in range(NUMBER_OF_SEGMENTS):
+                print("Segment " + str(i))
+                sounds[sound_num][i*MAX_API_LENGTH_MS:(i+1)*MAX_API_LENGTH_MS].export(audio_id + str(i) + ".wav", format="wav")
+                    
+                with sr.AudioFile(audio_id + str(i) + ".wav") as source:
+                    audio_text = r.listen(source)
 
-                try:
-                    # using google speech recognition
-                    text += r.recognize_google(audio_text) + " "
-                except sr.UnknownValueError:
-                    print("Google Speech Recognition could not understand audio")
-                    if text == "":
-                        text = "UNK"
-                except sr.RequestError as e:
-                    print("Could not request results from Google Speech Recognition service; {0}".format(e))
-                os.remove(audio_ids[sound_num] + str(i) + ".wav")
-        embedding = calculate_embedding(text)
-        print("Sending the data...")
-        db.audios.update_one(
-            {"_id": ObjectId(audio_ids[sound_num])}, 
-            {"$set": {"transcription": text, "wordEmbedding": embedding}},
-            upsert=True
-        )
-        print("Done!")
+                    try:
+                        # using google speech recognition
+                        text += r.recognize_google(audio_text) + " "
+                    except sr.UnknownValueError:
+                        print("Google Speech Recognition could not understand audio")
+                        if text == "":
+                            text = "UNK"
+                    except sr.RequestError as e:
+                        print("Could not request results from Google Speech Recognition service; {0}".format(e))
+                    os.remove(audio_id + str(i) + ".wav")
+            embedding = calculate_embedding(text)
+            print("Sending the data...")
+            db.audios.update_one(
+                {"_id": ObjectId(audio_id)}, 
+                {"$set": {"transcription": text, "wordEmbedding": embedding}},
+                upsert=True
+            )
+            print("Done!")
+        else: 
+            db.audios.update_one(
+                {"_id": ObjectId(audio_id)}, 
+                {"$set": {"isVisible": False, "duration": NUMBER_OF_SEGMENTS * 30}},
+                upsert=True
+            )
+            print("Audio is too long! - " + str(audio_id))
     print("All Finished!")
 
 

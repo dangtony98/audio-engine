@@ -54,13 +54,13 @@ def transcribe():
         background_transcribe.delay(audio_ids)
     elif CASE == 'QUERY':
         # If needed to transcribe all the missing ones
-        audio_ids = [str(audio["_id"]) for audio in db.audios.find({"transcription": {"$exists": False}})]
+        audio_ids = [str(audio["_id"]) for audio in db.audios.find({"transcription": {"$exists": False}, "isVisible": True}, {"_id": 1})][50:]
         print("To transcribe:", audio_ids)
         THREADS = 1
+        import time
         for i in range(THREADS):
-            import time
             background_transcribe.delay(audio_ids[int(len(audio_ids)*i/THREADS): int(len(audio_ids)*(i+1)/THREADS)])
-            time.sleep(10)
+            time.sleep(5)
 
     
     # for audio_id in audio_ids:
@@ -117,6 +117,16 @@ def search(user_id, query):
 @app.route("/pickle", methods=["POST"])
 def pickle():
     pickle_word_embeddings()
+
+
+@app.route("/delete", methods=["POST"])
+def delete():
+    """
+    insert the audio text transcription into DB
+    """
+    # twenty_seconds_ago = datetime.now() - timedelta(days=1)
+    # db.audios.delete_many({"user": ObjectId('61eb5776870ee40004502929'), "createdAt": {"$gte": twenty_seconds_ago}})
+    return json.dumps({"success": True}), 200, {"ContentType": "application/json"}
 
 # import tensorflow as tf
 # class MaskedEmbeddingsAggregatorLayer(tf.keras.layers.Layer):
