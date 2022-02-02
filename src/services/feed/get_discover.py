@@ -40,7 +40,7 @@ def get_content_pool(user_id, redis_ids):
         db.audios.find({"_id": {"$nin": list(set(seen_ids) | set(blocked_ids) | set(redis_ids))}, "isVisible": True, "wordEmbedding": {"$exists": 1}}, 
         {"wordEmbedding": 1})
     )
-    see_ids = [str(id) for id in seen_ids]
+    seen_ids = [str(id) for id in seen_ids]
     return unseen_pool, seen_ids
 
 
