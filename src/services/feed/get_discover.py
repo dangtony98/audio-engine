@@ -50,7 +50,8 @@ def get_sorted_content(mongo_scores, unseen_redis_scores):
     """
 
     scores = dict(mongo_scores, **unseen_redis_scores)
-    sorted_scores = {k: v for k, v in sorted(scores.items(), key=lambda item: -item[1])[:100]}
+    sorted_scores = {k: v + np.random.normal(0, 0.5) for k, v in sorted(scores.items(), key=lambda item: -item[1])[:150]}
+    sorted_scores = {k: v for k, v in sorted(sorted_scores.items(), key=lambda item: -item[1])[:100]}
     sorted_scores_keys = [ObjectId(id) for id in sorted_scores.keys()]
     return sorted_scores_keys
 
