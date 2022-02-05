@@ -80,7 +80,7 @@ def get_user_preference_vector(user_id):
     elif OPTION == "MAX": 
         user_preferences = [calculate_embedding(user_preference) for user_preference in user_preferences]
     # case: user has chosen no preferences during onboarding
-    if user_preferences != user_preferences:
+    if (user_preferences != user_preferences).all():
         user_preferences = [0] * 25
     return user_preferences
 
