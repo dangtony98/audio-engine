@@ -10,7 +10,7 @@ INVERSE_ORDER = -1
 OBJECT_ID_INDEX = 0
 PROB_INDEX = 1
 
-dict_filter = lambda x, y: dict([(i,x[i]) for i in x if i in set(y)])
+dict_filter = lambda x, y: dict([(i,x[i]) for i in y])
 
 
 def get_listeners(user_id):
