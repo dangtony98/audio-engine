@@ -116,7 +116,7 @@ def filter_annoying_audios(user_id):
     This function filter out audios tha toccur too often on the top of the feed
     """
     seen_feeds = [feed["discover"][:TOP_FEED_THRESHOLD] for feed in db.feeds.find({"user": ObjectId(user_id)})]
-    annoying_audio_ids = [audio_id for feed in seen_feeds for audio_id in feed]
+    annoying_audio_ids = [str(audio_id) for feed in seen_feeds for audio_id in feed]
     cnt = Counter(annoying_audio_ids)
     annoying_audio_ids = [audio_id for audio_id, occurences in cnt.items() if occurences >= ANNOYNESS_THRESHOLD]
     return annoying_audio_ids
@@ -139,7 +139,7 @@ def get_feed(user_id):
     annoying_audio_ids = filter_annoying_audios(user_id)
 
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
-    unseen_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if key not in (listened_ids or annoying_audio_ids)}
+    unseen_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key not in listened_ids) and (key not in annoying_audio_ids)}
     unseen_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in notlistened_pool if audio["_id"] not in annoying_audio_ids}
     if OPTION == "AVG":
         mongo_scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in unseen_embeddings.items()}
