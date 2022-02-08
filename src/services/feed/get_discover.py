@@ -1,4 +1,5 @@
 from bson.objectid import ObjectId
+from collections import Counter
 import numpy as np
 from cvxpy import *
 from app import db
@@ -9,6 +10,8 @@ from ..utils import calculate_embedding
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
+ANNOYNESS_THRESHOLD = 2
+TOP_FEED_THRESHOLD = 4
 PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
             'health fitness sport', 'sports', 'diy', 'true crime', 'fiction', 'dating', 'parenting', 'food', 'travel', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
@@ -75,6 +78,7 @@ def get_user_preference_vector(user_id):
     """
     user_x = get_user_x(user_id)
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
+
     if OPTION == "AVG":
         user_preferences = np.mean([calculate_embedding(user_preference) for user_preference in user_preferences], axis=0)
     elif OPTION == "MAX": 
@@ -107,6 +111,17 @@ def get_data(sorted_scores_keys):
     return feed
 
 
+def filter_annoying_audios(user_id):
+    """
+    This function filter out audios tha toccur too often on the top of the feed
+    """
+    seen_feeds = [feed["discover"][:TOP_FEED_THRESHOLD] for feed in db.feeds.find({"user": ObjectId(user_id)})]
+    annoying_audio_ids = [audio_id for feed in seen_feeds for audio_id in feed]
+    cnt = Counter(annoying_audio_ids)
+    annoying_audio_ids = [audio_id for audio_id, occurences in cnt.items() if occurences >= ANNOYNESS_THRESHOLD]
+    return annoying_audio_ids
+
+
 def get_feed(user_id):
     """
     gets the discovery feed for user with id [user_id]
@@ -118,11 +133,14 @@ def get_feed(user_id):
     redis_scores, redis_ids = get_redis_scores(user_id)
     
     # Query from DB everything besides the ids cached in Redis
-    unseen_pool, seen_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids])
+    notlistened_pool, listened_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids])
+
+    # Filter out the items that were previously seen too many times on the top of the feed - annoying
+    annoying_audio_ids = filter_annoying_audios(user_id)
 
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
-    unseen_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if key not in seen_ids}
-    unseen_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in unseen_pool}
+    unseen_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if key not in (listened_ids or annoying_audio_ids)}
+    unseen_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in notlistened_pool if audio["_id"] not in annoying_audio_ids}
     if OPTION == "AVG":
         mongo_scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in unseen_embeddings.items()}
     elif OPTION == "MAX":
