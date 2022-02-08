@@ -90,7 +90,8 @@ def transcribe_audio(sounds, audio_id):
                     except sr.RequestError as e:
                         print("Could not request results from Google Speech Recognition service; {0}".format(e))
                     os.remove(audio_id + str(i) + ".wav")
-            embedding = calculate_embedding(text)
+            if text != "UNK":
+                embedding = calculate_embedding(text)
             print("Sending the data...")
             db.audios.update_one(
                 {"_id": ObjectId(audio_id)}, 
