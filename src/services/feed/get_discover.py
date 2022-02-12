@@ -14,7 +14,9 @@ INVERSE_ORDER = -1
 ANNOYANCE_THRESHOLD = 2
 TOP_FEED_THRESHOLD = 4
 REDIS_THRESHOLD = 1000 # How many items do we wanna save in redis
-FOLLOWING_BENEFIT = 0.15
+FOLLOWING_BENEFIT = 1
+RANDOM_MEAN, RANDOM_VARIANCE = 0, 0.5
+MAX_CREATORS_ON_FEED = 4
 PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
             'health fitness sport', 'sports', 'diy', 'true crime', 'fiction', 'dating', 'parenting', 'food', 'travel', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
@@ -62,8 +64,24 @@ def add_following_benefit(scores, user_id):
     audio_creators_set = list(set([creator["user"] for creator in audio_creators]))
     follows_set = set([follow["to"] for follow in db.follows.find({"from": ObjectId(user_id), "to": {"$in": audio_creators_set}}, {"to": 1})])
     audios_from_follows = [str(audio["_id"]) for audio in audio_creators if audio["user"] in follows_set]
+
     scores = {k: (v + (FOLLOWING_BENEFIT if k in audios_from_follows else 0)) for k, v in scores.items()}
-    return scores
+
+    sorted_scores = {k: v + np.random.normal(RANDOM_MEAN, RANDOM_VARIANCE) for k, v in sorted(scores.items(), key=lambda item: -item[1])[:1000]}
+    
+    # Restricting the number of audios from the same creators on the feed
+    creators = {str(creator): 0 for creator in audio_creators_set}
+    def diversity_threshold_check(user_id):
+        creators[user_id] += 1
+        if creators[user_id] <= MAX_CREATORS_ON_FEED: 
+            return True
+        return False
+    audio_creators = {str(item["_id"]): str(item["user"]) for item in audio_creators}
+
+    sorted_scores = {item: sorted_scores[item] for item in sorted_scores.keys() if diversity_threshold_check(audio_creators[item])}
+    sorted_scores = {k: v for k, v in sorted(sorted_scores.items(), key=lambda item: -item[1])[:100]}
+    sorted_scores_keys = [ObjectId(id) for id in sorted_scores.keys()]
+    return sorted_scores_keys
 
 
 def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_scores):
@@ -80,11 +98,8 @@ def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_sc
         print(e)
     
     # This block of code actually benefits the audios from the account a  user is following
-    scores = add_following_benefit(scores, user_id)
+    sorted_scores_keys = add_following_benefit(scores, user_id)
 
-    sorted_scores = {k: v + np.random.normal(0, 0.5) for k, v in sorted(scores.items(), key=lambda item: -item[1])[:150]}
-    sorted_scores = {k: v for k, v in sorted(sorted_scores.items(), key=lambda item: -item[1])[:100]}
-    sorted_scores_keys = [ObjectId(id) for id in sorted_scores.keys()]
     return sorted_scores_keys
 
 
@@ -198,15 +213,6 @@ def get_feed(user_id):
     # Sort data in the same order
     order_dict = {_id: index for index, _id in enumerate(sorted_scores_keys)}
     feed.sort(key=lambda x: order_dict[x["_id"]])
-    
-    # TODO: Add user if I want to have more diversity
-    # creators = {audio["user"]: 0 for audio in sorted_unseen_pool}
-    # def diversity_threshold_check(user_id):
-    #     creators[user_id] += 1
-    #     if creators[user_id] <= 12: 
-    #         return True
-    #     return False
-    # feed = [audio for audio in sorted_unseen_pool if diversity_threshold_check(audio["user"])][:100]
 
     return feed
 
@@ -225,4 +231,4 @@ def update_feed(user_id, feed_name, feed):
     # new_values = {"$set": values}
 
     # db.feeds.update_one(filter, new_values, upsert=True)
-    db.feeds.insert_one(values)
+    db.feeds.insert_one(values) 
