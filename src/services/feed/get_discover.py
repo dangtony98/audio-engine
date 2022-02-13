@@ -3,11 +3,12 @@ from collections import Counter
 import numpy as np
 from cvxpy import *
 from app import db
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, timedelta
 import os
 from app import r
 from operator import itemgetter
 from ..utils import calculate_embedding
+
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
@@ -22,6 +23,10 @@ PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
             'tech', 'finance investing', 'politics', 'news']
 OPTION = "AVG"
+AFTER_ONBOARDING_FEED = ["61fb535c83126c67d6364225", "61f6d41b83126c67d6106601", "61fb535c83126c67d636434f", "62027961a0cccde693d8e22f",
+                         "61f6bc1c83126c67d6fe55eb", "61eaf43b6ca5e8686eccaf6c", "61eaf43b6ca5e8686eccad0c", "61f939f283126c67d6bae621",
+                         "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
+                         "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a"]
 
 
 def get_user_x(user_id):
@@ -56,6 +61,29 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
     return nonlistened_pool, listened_ids
 
 
+def get_content_pool_from_specific_audios(user_id, specific_audios):
+    """
+    Returns a content pool of ids to consider and their repective embeddings
+    """
+    # get ids of seen ledges
+    listened_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id), "audio": {"$in": specific_audios}})]
+
+    # get ids of blocked users
+    blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
+
+    # get ids of blocked content
+    blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}, "audio": {"$in": specific_audios}}, {"_id": 1})]
+
+    nonlistened_pool = list(
+        db.audios.find({"_id": {"$nin": list(set(listened_ids) | set(blocked_ids))}, 
+                        "_id": {"$in": specific_audios},
+                        "isVisible": True, 
+                        "wordEmbedding": {"$exists": 1}}, 
+        {"wordEmbedding": 1})
+    )
+    return nonlistened_pool
+
+
 def add_following_benefit(scores, user_id):
     """
     Seeing which audios come from people the user is following and increasing their ranking position
@@ -82,6 +110,18 @@ def add_following_benefit(scores, user_id):
     sorted_scores = {k: v for k, v in sorted(sorted_scores.items(), key=lambda item: -item[1])[:100]}
     sorted_scores_keys = [ObjectId(id) for id in sorted_scores.keys()]
     return sorted_scores_keys
+
+
+def is_new_user(user_id):
+    """
+    This function checks if the users has joined within the past 24 hours
+    """
+    one_day_ago = datetime.now() - timedelta(days=1)
+    try:
+        print(list(db.users.find({"_id": ObjectId(user_id), "createdAt": {"$gte": one_day_ago}}, {"_id": 1}))[0]["_id"])
+        return True
+    except:
+        return False
 
 
 def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_scores):
@@ -173,6 +213,16 @@ def filter_annoying_audios(user_id):
     return annoying_audio_ids
 
 
+def calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings):
+    if OPTION == "AVG":
+        scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in nonlistened_audios_embeddings.items()}
+    elif OPTION == "MAX":
+        scores = {str(episode_id): np.max([np.dot(user_preference, episode_embedding) for user_preference in user_preferences]) for episode_id, episode_embedding in nonlistened_audios_embeddings.items()}
+    # Get 1000 best audios
+    scores = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[:REDIS_THRESHOLD])
+    return scores
+
+
 def get_feed(user_id):
     """
     gets the discovery feed for user with id [user_id]
@@ -193,13 +243,19 @@ def get_feed(user_id):
     nonlistened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key not in listened_ids) and (key not in annoying_audio_ids)}
     listened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key in listened_ids) or (key in annoying_audio_ids)}
     nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in nonlistened_pool if audio["_id"] not in annoying_audio_ids}
-    if OPTION == "AVG":
-        mongo_scores = {str(episode_id): np.dot(user_preferences, episode_embedding) for episode_id, episode_embedding in nonlistened_audios_embeddings.items()}
-    elif OPTION == "MAX":
-        mongo_scores = {str(episode_id): np.max([np.dot(user_preference, episode_embedding) for user_preference in user_preferences]) for episode_id, episode_embedding in nonlistened_audios_embeddings.items()}
+    mongo_scores = calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings)
 
-    # Get 1000 best audios
-    mongo_scores = dict(sorted(mongo_scores.items(), key = itemgetter(1), reverse = True)[:REDIS_THRESHOLD])
+    is_new_user_bool = is_new_user(user_id)
+    if is_new_user_bool:
+        first_time_audios = [audio for audio in db.audios.find({"_id": {"$in": [ObjectId(id) for id in AFTER_ONBOARDING_FEED]}}, {"_id": 1})]
+        first_audios_pool = get_content_pool_from_specific_audios(user_id, [ObjectId(audio["_id"]) for audio in first_time_audios])
+        first_time_nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in first_audios_pool if audio["_id"] not in annoying_audio_ids}
+        first_time_audio_scores = calculate_scores_for_audios(user_preferences, first_time_nonlistened_audios_embeddings)
+        sorted_first_time_audios_scores_keys = [ObjectId(id) for id in first_time_audio_scores.keys()]
+        first_time_feed = get_data(sorted_first_time_audios_scores_keys)
+        order_dict = {_id: index for index, _id in enumerate(sorted_first_time_audios_scores_keys)}
+        first_time_feed.sort(key=lambda x: order_dict[x["_id"]])
+
 
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)
@@ -213,6 +269,9 @@ def get_feed(user_id):
     # Sort data in the same order
     order_dict = {_id: index for index, _id in enumerate(sorted_scores_keys)}
     feed.sort(key=lambda x: order_dict[x["_id"]])
+
+    if is_new_user_bool:
+        feed = first_time_feed + feed
 
     return feed
 
@@ -232,3 +291,10 @@ def update_feed(user_id, feed_name, feed):
 
     # db.feeds.update_one(filter, new_values, upsert=True)
     db.feeds.insert_one(values) 
+
+
+# TODO: cleanup the code
+# TODO: make sure the audios don't repete 
+# TODO: change and expand the number of first time audios
+# TODO: Add random noise to first-time predictions
+# TODO: HDEL command bug
