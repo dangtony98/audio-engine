@@ -93,9 +93,12 @@ def transcribe_audio(sounds, audio_id):
             if text != "UNK":
                 embedding = calculate_embedding(text)
             print("Sending the data...")
+            duration = [audio["duration"] for audio in db.audios.find({"_id": ObjectId(audio_id)}, {"duration": 1})]
+            if duration < NUMBER_OF_SEGMENTS * 29 or duration > NUMBER_OF_SEGMENTS * 31:
+                duration = NUMBER_OF_SEGMENTS * 30
             db.audios.update_one(
                 {"_id": ObjectId(audio_id)}, 
-                {"$set": {"transcription": text, "wordEmbedding": embedding}},
+                {"$set": {"transcription": text, "wordEmbedding": embedding, "duration": duration}},
                 upsert=True
             )
             print("Done!")
