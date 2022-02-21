@@ -93,8 +93,8 @@ def transcribe_audio(sounds, audio_id):
             if text != "UNK":
                 embedding = calculate_embedding(text)
             print("Sending the data...")
-            duration = [audio["duration"] for audio in db.audios.find({"_id": ObjectId(audio_id)}, {"duration": 1})]
-            if duration < (NUMBER_OF_SEGMENTS - 1) * 30 or duration > (NUMBER_OF_SEGMENTS + 1) * 30:
+            duration = [audio["duration"] for audio in db.audios.find({"_id": ObjectId(audio_id)}, {"duration": 1})][0]
+            if (duration < (NUMBER_OF_SEGMENTS - 1) * 30) or (duration > (NUMBER_OF_SEGMENTS + 1) * 30):
                 duration = NUMBER_OF_SEGMENTS * 30
             db.audios.update_one(
                 {"_id": ObjectId(audio_id)}, 
