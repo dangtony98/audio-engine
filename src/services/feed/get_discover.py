@@ -14,10 +14,15 @@ DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
 ANNOYANCE_THRESHOLD = 2
 TOP_FEED_THRESHOLD = 4
+LAST_FEED_THRESHOLD = 15
 REDIS_THRESHOLD = 1000 # How many items do we wanna save in redis
-FOLLOWING_BENEFIT = 1
+FOLLOWING_BENEFIT = 0.5
+LAST_GOOD_CREATOR_BENEFIT = 0.5
+CREATOR_BENEFIT = 1
 RANDOM_MEAN, RANDOM_VARIANCE = 0, 0.5
 MAX_CREATORS_ON_FEED = 4
+POSITIVE_RATING_THRESHOLD = 0.75
+RATINGS_MAPPING = {0: 0.9, 1: 0.6, 2: 0.3, 3: 0.15}
 PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
             'health fitness sport', 'sports', 'diy', 'true crime', 'fiction', 'dating', 'parenting', 'food', 'travel', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
@@ -26,7 +31,8 @@ OPTION = "AVG"
 AFTER_ONBOARDING_FEED = ["61fb535c83126c67d6364225", "61f6d41b83126c67d6106601", "61fb535c83126c67d636434f", "62027961a0cccde693d8e22f",
                          "61f6bc1c83126c67d6fe55eb", "61eaf43b6ca5e8686eccaf6c", "61eaf43b6ca5e8686eccad0c", "61f939f283126c67d6bae621",
                          "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
-                         "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a"]
+                         "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a", "61ecc8216ca5e8686ed34c94",
+                         "620da360882acdbef067ac0d"]
 
 
 def get_user_x(user_id):
@@ -83,30 +89,55 @@ def get_content_pool_from_specific_audios(user_id, specific_audios):
     )
     return nonlistened_pool
 
+def diversity_threshold_check(creators, user_id):
+    """
+    This function makes sure that too many of the audios from the same creator don't show up within one feed
+    """
+    creators[user_id] += 1
+    if creators[user_id] <= MAX_CREATORS_ON_FEED: 
+        return True
+    return False
 
-def add_following_benefit(scores, user_id):
+
+def add_history_benefits(scores, user_id):
     """
     Seeing which audios come from people the user is following and increasing their ranking position
     """
+
+    # Get the creators of the potential audios
     audio_creators = list(db.audios.find({"_id": {"$in": [ObjectId(score) for score in scores.keys()]}}, {"user": 1}))
     audio_creators_set = list(set([creator["user"] for creator in audio_creators]))
+
+    # Select the ones that the user is following
     follows_set = set([follow["to"] for follow in db.follows.find({"from": ObjectId(user_id), "to": {"$in": audio_creators_set}}, {"to": 1})])
     audios_from_follows = [str(audio["_id"]) for audio in audio_creators if audio["user"] in follows_set]
-
     scores = {k: (v + (FOLLOWING_BENEFIT if k in audios_from_follows else 0)) for k, v in scores.items()}
 
+    # Select the audios of favorite creators form the past (one week period - could be changed)
+    one_week_ago = datetime.now() - timedelta(days=7)
+    ratings_audios = [rating["audio"] for rating in db.ratings.find({"user": ObjectId(user_id), "rating": {"$gte": POSITIVE_RATING_THRESHOLD}, "createdAt": {"$gte": one_week_ago}}, {"audio": 1})]
+    most_common_creators = {k: v for k, v in Counter([audio["user"] for audio in db.audios.find({"_id": {"$in": ratings_audios}}, {"user": 1})]).most_common(4)}
+    ratings_creators = {k: RATINGS_MAPPING[list(most_common_creators.keys()).index(k)] for k in list(most_common_creators.keys())}
+    audios_from_ratings = {str(audio["_id"]): ratings_creators[audio["user"]] for audio in audio_creators if audio["user"] in list(most_common_creators.keys())}
+    scores = {k: (v + (audios_from_ratings[k] if k in list(audios_from_ratings.keys()) else 0)) for k, v in scores.items()}
+
+    # Find the audios from the last positive rating's creator
+    audio_last_good_creator = [rating["audio"] for rating in db.ratings.find({"user": ObjectId(user_id), "rating": {"$gte": POSITIVE_RATING_THRESHOLD}}, {"audio": 1}).sort("listenedAt", -1).limit(1)]
+    # Make sure that we account for people who do not have any previos listening history
+    if len(audio_last_good_creator) != 0:
+        audio_last_good_creator = audio_last_good_creator[0]
+        last_good_creator = list(db.audios.find({"_id": ObjectId(audio_last_good_creator)}, {"user": 1}))[0]["user"]
+        audios_last_creator = [str(audio["_id"]) for audio in audio_creators if audio["user"]==last_good_creator]
+        scores = {k: (v + (LAST_GOOD_CREATOR_BENEFIT if k in audios_last_creator else 0)) for k, v in scores.items()}
+
     sorted_scores = {k: v + np.random.normal(RANDOM_MEAN, RANDOM_VARIANCE) for k, v in sorted(scores.items(), key=lambda item: -item[1])[:1000]}
-    
+ 
     # Restricting the number of audios from the same creators on the feed
     creators = {str(creator): 0 for creator in audio_creators_set}
-    def diversity_threshold_check(user_id):
-        creators[user_id] += 1
-        if creators[user_id] <= MAX_CREATORS_ON_FEED: 
-            return True
-        return False
     audio_creators = {str(item["_id"]): str(item["user"]) for item in audio_creators}
+    sorted_scores = {item: sorted_scores[item] for item in sorted_scores.keys() if diversity_threshold_check(creators, audio_creators[item])}
 
-    sorted_scores = {item: sorted_scores[item] for item in sorted_scores.keys() if diversity_threshold_check(audio_creators[item])}
+    # Selecting the top 100 audios
     sorted_scores = {k: v for k, v in sorted(sorted_scores.items(), key=lambda item: -item[1])[:100]}
     sorted_scores_keys = [ObjectId(id) for id in sorted_scores.keys()]
     return sorted_scores_keys
@@ -138,7 +169,7 @@ def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_sc
         print(e)
     
     # This block of code actually benefits the audios from the account a  user is following
-    sorted_scores_keys = add_following_benefit(scores, user_id)
+    sorted_scores_keys = add_history_benefits(scores, user_id)
 
     return sorted_scores_keys
 
@@ -205,11 +236,17 @@ def get_data(sorted_scores_keys):
 def filter_annoying_audios(user_id):
     """
     This function filter out audios tha toccur too often on the top of the feed
+    It also doesn't showthe audios that were shown in the last feed (in the first 15 audios)
     """
-    seen_feeds = [feed["discover"][:TOP_FEED_THRESHOLD] for feed in db.feeds.find({"user": ObjectId(user_id)})]
+    seen_feeds = [feed["discover"][:TOP_FEED_THRESHOLD] for feed in db.feeds.find({"user": ObjectId(user_id)})][:-1]
+    try:
+        last_feed = [feed["discover"][:LAST_FEED_THRESHOLD] for feed in db.feeds.find({"user": ObjectId(user_id)}).sort("createdAt", -1).limit(1)][0]
+    except IndexError:
+        print("This user has no previos feeds")
+        last_feed = []
     annoying_audio_ids = [str(audio_id) for feed in seen_feeds for audio_id in feed]
     cnt = Counter(annoying_audio_ids)
-    annoying_audio_ids = [audio_id for audio_id, occurences in cnt.items() if occurences >= ANNOYANCE_THRESHOLD]
+    annoying_audio_ids = [audio_id for audio_id, occurences in cnt.items() if occurences >= ANNOYANCE_THRESHOLD] + last_feed
     return annoying_audio_ids
 
 
@@ -256,7 +293,6 @@ def get_feed(user_id):
         order_dict = {_id: index for index, _id in enumerate(sorted_first_time_audios_scores_keys)}
         first_time_feed.sort(key=lambda x: order_dict[x["_id"]])
 
-
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)
 
@@ -281,20 +317,14 @@ def update_feed(user_id, feed_name, feed):
     update feed named [feed_name] for user with id [user_id]
     """
 
-    # filter = {"user": ObjectId(user_id)}
-
     values = {}
     values[feed_name] = [item["_id"] for item in feed]
     values["user"] = ObjectId(user_id)
     values["createdAt"] = datetime.now(timezone.utc)
-    # new_values = {"$set": values}
-
-    # db.feeds.update_one(filter, new_values, upsert=True)
     db.feeds.insert_one(values) 
 
 
 # TODO: cleanup the code
-# TODO: make sure the audios don't repete 
 # TODO: change and expand the number of first time audios
 # TODO: Add random noise to first-time predictions
 # TODO: HDEL command bug
