@@ -23,6 +23,7 @@ RANDOM_MEAN, RANDOM_VARIANCE = 0, 0.5
 MAX_CREATORS_ON_FEED = 4
 POSITIVE_RATING_THRESHOLD = 0.75
 RATINGS_MAPPING = {0: 0.9, 1: 0.6, 2: 0.3, 3: 0.15}
+NUMBER_INIT_PREFERENCES = 30
 PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 'music', 'fashion beauty',
             'health fitness sport', 'sports', 'diy', 'true crime', 'fiction', 'dating', 'parenting', 'food', 'travel', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
@@ -60,7 +61,7 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
         db.audios.find({"_id": {"$nin": list(set(listened_ids) | set(blocked_ids) | set(redis_ids))}, 
                         "isVisible": True, 
                         "wordEmbedding": {"$exists": 1},
-                        "createdAt": {"$gte": datetime.fromisoformat(str(redis_last_date))}}, 
+                        "updatedAt": {"$gte": datetime.fromisoformat(str(redis_last_date))}}, 
         {"wordEmbedding": 1})
     )
     listened_ids = [str(id) for id in listened_ids]
@@ -147,7 +148,7 @@ def is_new_user(user_id):
     """
     This function checks if the users has joined within the past 24 hours
     """
-    one_day_ago = datetime.now() - timedelta(days=1)
+    one_day_ago = datetime.now() - timedelta(hours=24)
     try:
         print(list(db.users.find({"_id": ObjectId(user_id), "createdAt": {"$gte": one_day_ago}}, {"_id": 1}))[0]["_id"])
         return True
@@ -162,9 +163,11 @@ def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_sc
     """
     scores = dict(mongo_scores, **unseen_redis_scores)
     try:
-        r.hdel("user:" + user_id + ":scores", *seen_redis_scores.keys())
-        scores_to_be_deleted = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[1000:])
-        r.hdel("user:" + user_id + ":scores", *scores_to_be_deleted.keys())
+        if len(seen_redis_scores) != 0:
+            r.hdel("user:" + user_id + ":scores", *seen_redis_scores.keys())
+        if len(scores) >= 1000:
+            scores_to_be_deleted = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[1000:])
+            r.hdel("user:" + user_id + ":scores", *scores_to_be_deleted.keys())
     except Exception as e:
         print(e)
     
@@ -197,6 +200,8 @@ def get_user_preference_vector(user_id):
     Gets user's init embedding and converts it to the the average of word embeddings
     """
     user_x = get_user_x(user_id)
+    if (user_x == [0]*NUMBER_INIT_PREFERENCES):
+        user_x[26] = 1
     user_preferences = [PREFERENCES[i] for i in range(len(PREFERENCES)) if user_x[i]==1]
 
     if OPTION == "AVG":
@@ -217,7 +222,7 @@ def send_to_redis(user_id, mongo_scores):
     try: 
         if len(mongo_scores) > 0:
             r.hmset("user:" + user_id + ":scores", mongo_scores)
-        r.set("user:" + user_id + ":lastUpdateDate", datetime.now().isoformat())
+        r.set("user:" + user_id + ":lastUpdateDate", (datetime.now() - timedelta(hours=1)).isoformat())
     except Exception as e: 
         print(e)
 
@@ -246,8 +251,8 @@ def filter_annoying_audios(user_id):
         last_feed = []
     annoying_audio_ids = [str(audio_id) for feed in seen_feeds for audio_id in feed]
     cnt = Counter(annoying_audio_ids)
-    annoying_audio_ids = [audio_id for audio_id, occurences in cnt.items() if occurences >= ANNOYANCE_THRESHOLD] + last_feed
-    return annoying_audio_ids
+    annoying_audio_ids = [audio_id for audio_id, occurences in cnt.items() if occurences >= ANNOYANCE_THRESHOLD]
+    return annoying_audio_ids, last_feed
 
 
 def calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings):
@@ -274,10 +279,10 @@ def get_feed(user_id):
     nonlistened_pool, listened_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids], redis_last_date)
 
     # Filter out the items that were previously seen too many times on the top of the feed - annoying
-    annoying_audio_ids = filter_annoying_audios(user_id)
+    annoying_audio_ids, last_feed = filter_annoying_audios(user_id)
 
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
-    nonlistened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key not in listened_ids) and (key not in annoying_audio_ids)}
+    nonlistened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key not in listened_ids) and (key not in (annoying_audio_ids + last_feed))}
     listened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key in listened_ids) or (key in annoying_audio_ids)}
     nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in nonlistened_pool if audio["_id"] not in annoying_audio_ids}
     mongo_scores = calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings)
@@ -286,7 +291,7 @@ def get_feed(user_id):
     if is_new_user_bool:
         first_time_audios = [audio for audio in db.audios.find({"_id": {"$in": [ObjectId(id) for id in AFTER_ONBOARDING_FEED]}}, {"_id": 1})]
         first_audios_pool = get_content_pool_from_specific_audios(user_id, [ObjectId(audio["_id"]) for audio in first_time_audios])
-        first_time_nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in first_audios_pool if audio["_id"] not in annoying_audio_ids}
+        first_time_nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in first_audios_pool if audio["_id"] not in annoying_audio_ids + last_feed}
         first_time_audio_scores = calculate_scores_for_audios(user_preferences, first_time_nonlistened_audios_embeddings)
         sorted_first_time_audios_scores_keys = [ObjectId(id) for id in first_time_audio_scores.keys()]
         first_time_feed = get_data(sorted_first_time_audios_scores_keys)
