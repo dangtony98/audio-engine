@@ -1,13 +1,14 @@
-from celery import Celery
+import pickle
 import os
+
+import numpy as np
+from celery import Celery
 from pydub import AudioSegment
 from urllib.request import Request, urlopen
 from bson.objectid import ObjectId
-import os
 import speech_recognition as sr
 from client import db
-import pickle
-import numpy as np
+from datetime import datetime
 
 app = Celery()
 app.conf.update(broker_url=os.environ['REDIS_URL'],
@@ -98,7 +99,7 @@ def transcribe_audio(sounds, audio_id):
                 duration = NUMBER_OF_SEGMENTS * 30
             db.audios.update_one(
                 {"_id": ObjectId(audio_id)}, 
-                {"$set": {"transcription": text, "wordEmbedding": embedding, "duration": duration}},
+                {"$set": {"transcription": text, "wordEmbedding": embedding, "duration": duration, "updatedAt": datetime.now()}},
                 upsert=True
             )
             print("Done!")
