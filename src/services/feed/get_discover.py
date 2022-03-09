@@ -183,6 +183,7 @@ def get_redis_scores(user_id):
     """
     try:
         redis_last_date = r.get("user:" + user_id + ":lastUpdateDate")
+        redis_last_date = '2022-01-01 00:00:00.000+05:00' if redis_last_date == None else redis_last_date
     except Exception as e: 
         redis_last_date = '2022-01-01 00:00:00.000+05:00'
         print(e)
