@@ -182,14 +182,26 @@ def get_redis_scores(user_id):
     Gets all the cached scores (corresponding to audios) for a certain user and the timestamp when those scores were generate
     """
     try:
-        redis_scores = r.hgetall("user:" + user_id + ":scores")
-    except Exception as e: 
-        redis_scores = {}
-        print(e)
-    try:
         redis_last_date = r.get("user:" + user_id + ":lastUpdateDate")
     except Exception as e: 
         redis_last_date = '2022-01-01 00:00:00.000+05:00'
+        print(e)
+
+    # This part of code removes the creators that were just blocked from redis scores
+    blocked_users = [elem["to"] for elem in 
+        db.blocks.find({"createdAt": {"$gte": datetime.fromisoformat(str(redis_last_date))}}, {"to": 1})]
+    if len(blocked_users) != 0: 
+        blocked_audios = [str(elem["_id"]) for elem in db.audios.find({"user": {"$in": blocked_users}}, {"_id": 1})]
+        if len(blocked_audios) != 0:
+            try:
+                r.hdel("user:" + user_id + ":scores", *blocked_audios)
+            except Exception as e:
+                print(e)
+
+    try:
+        redis_scores = r.hgetall("user:" + user_id + ":scores")
+    except Exception as e: 
+        redis_scores = {}
         print(e)
     redis_ids = redis_scores.keys()
     return redis_scores, redis_ids, redis_last_date
