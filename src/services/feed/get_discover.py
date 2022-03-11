@@ -33,7 +33,7 @@ AFTER_ONBOARDING_FEED = ["61fb535c83126c67d6364225", "61f6d41b83126c67d6106601",
                          "61f6bc1c83126c67d6fe55eb", "61eaf43b6ca5e8686eccaf6c", "61eaf43b6ca5e8686eccad0c", "61f939f283126c67d6bae621",
                          "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
                          "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a", "61ecc8216ca5e8686ed34c94",
-                         "620da360882acdbef067ac0d"]
+                         "620da360882acdbef067ac0d", "622ac77943313100046821f8"]
 
 
 def get_user_x(user_id):
