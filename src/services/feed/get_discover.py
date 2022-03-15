@@ -65,7 +65,15 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
         {"wordEmbedding": 1})
     )
     listened_ids = [str(id) for id in listened_ids]
-    return nonlistened_pool, listened_ids
+
+    # For people who have something in redis, make sure that we get rid of any deleted audios
+    if redis_ids:
+        found_pool = [elem["_id"] for elem in db.audios.find({"_id": {"$in": redis_ids}, "isVisible": True}, {"_id": 1})]
+        to_be_deleted_redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id not in found_pool]
+        if len(to_be_deleted_redis_ids) != 0:
+            r.hdel("user:" + user_id + ":scores", *to_be_deleted_redis_ids)
+        redis_ids = [redis_id for redis_id in redis_ids if redis_id in found_pool]
+    return nonlistened_pool, listened_ids, redis_ids
 
 
 def get_content_pool_from_specific_audios(user_id, specific_audios):
@@ -289,14 +297,18 @@ def get_feed(user_id):
     redis_scores, redis_ids, redis_last_date = get_redis_scores(user_id)
     
     # Query from DB everything besides the ids cached in Redis
-    nonlistened_pool, listened_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids], redis_last_date)
+    nonlistened_pool, listened_ids, redis_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids], redis_last_date)
+    
+    # Make sure that we don't take into account the redis scores of audios that were for some reason deleted
+    if len(redis_scores) != len(redis_ids):
+        redis_scores = {key: value for key, value in redis_scores.items() if ObjectId(key) in redis_ids}
 
     # Filter out the items that were previously seen too many times on the top of the feed - annoying
     annoying_audio_ids, last_feed = filter_annoying_audios(user_id)
 
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
-    nonlistened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key not in listened_ids) and (key not in (annoying_audio_ids + last_feed))}
-    listened_redis_scores = {key: float(redis_scores[key]) for key in redis_ids if (key in listened_ids) or (key in annoying_audio_ids)}
+    nonlistened_redis_scores = {str(key): float(redis_scores[str(key)]) for key in redis_ids if (key not in listened_ids) and (key not in (annoying_audio_ids + last_feed))}
+    listened_redis_scores = {key: float(redis_scores[str(key)]) for key in redis_ids if (key in listened_ids) or (key in annoying_audio_ids)}
     nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in nonlistened_pool if audio["_id"] not in annoying_audio_ids}
     mongo_scores = calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings)
 
