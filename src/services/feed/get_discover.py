@@ -29,6 +29,7 @@ PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
             'tech', 'finance investing', 'politics', 'news']
 OPTION = "AVG"
+OWN_FEED = ["622ac77943313100046821f8"]
 AFTER_ONBOARDING_FEED = ["61fb535c83126c67d6364225", "61f6d41b83126c67d6106601", "61fb535c83126c67d636434f", "62027961a0cccde693d8e22f",
                          "61f6bc1c83126c67d6fe55eb", "61eaf43b6ca5e8686eccaf6c", "61eaf43b6ca5e8686eccad0c", "61f939f283126c67d6bae621",
                          "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
@@ -322,6 +323,7 @@ def get_feed(user_id):
         first_time_feed = get_data(sorted_first_time_audios_scores_keys)
         order_dict = {_id: index for index, _id in enumerate(sorted_first_time_audios_scores_keys)}
         first_time_feed.sort(key=lambda x: order_dict[x["_id"]])
+        first_time_feed = [elem for elem in first_time_feed if elem["_id"] in OWN_FEED] + [elem for elem in first_time_feed if elem["_id"] not in OWN_FEED]
 
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)
@@ -354,7 +356,6 @@ def update_feed(user_id, feed_name, feed):
     db.feeds.insert_one(values) 
 
 
-# TODO: cleanup the code
 # TODO: change and expand the number of first time audios
 # TODO: Add random noise to first-time predictions
 # TODO: HDEL command bug
