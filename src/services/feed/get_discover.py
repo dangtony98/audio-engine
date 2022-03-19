@@ -48,8 +48,8 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
     """
     Returns a content pool of ids to consider and their repective embeddings
     """
-    # get ids of seen ledges
-    listened_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id)})]
+    # get ids of seen ledges; omitting the ones that the user might still listen to
+    listened_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id), "$or": [{"rating": {"$gte": 0.7}}, {"duration": {"$lte": 100}}]})]
 
     # get ids of blocked users
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
@@ -73,7 +73,7 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
         to_be_deleted_redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id not in found_pool]
         if len(to_be_deleted_redis_ids) != 0:
             r.hdel("user:" + user_id + ":scores", *to_be_deleted_redis_ids)
-        redis_ids = [redis_id for redis_id in redis_ids if redis_id in found_pool]
+        redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id in found_pool]
     return nonlistened_pool, listened_ids, redis_ids
 
 
@@ -323,7 +323,7 @@ def get_feed(user_id):
         first_time_feed = get_data(sorted_first_time_audios_scores_keys)
         order_dict = {_id: index for index, _id in enumerate(sorted_first_time_audios_scores_keys)}
         first_time_feed.sort(key=lambda x: order_dict[x["_id"]])
-        first_time_feed = [elem for elem in first_time_feed if elem["_id"] in OWN_FEED] + [elem for elem in first_time_feed if elem["_id"] not in OWN_FEED]
+        first_time_feed = [elem for elem in first_time_feed if str(elem["_id"]) in OWN_FEED] + [elem for elem in first_time_feed if str(elem["_id"]) not in OWN_FEED]
 
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)
