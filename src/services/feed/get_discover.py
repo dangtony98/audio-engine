@@ -28,16 +28,19 @@ PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 
             'health fitness sport', 'sports', 'diy', 'true crime', 'fiction', 'dating', 'parenting', 'food', 'travel', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
             'tech', 'finance investing', 'politics', 'news']
-GOOD_CREATORS = ["61e7b9286600ea002ea8514d", "62365ca19a1d9536f8afb350", "61e5c362e63580002e097613", "61eb7d26870ee4000450292c"]
+GOOD_CREATORS = ["61e7b9286600ea002ea8514d", "62365ca19a1d9536f8afb350", "61e5c362e63580002e097613", "61eb7d26870ee4000450292c", 
+                 "61fed4a140c09e0004d3c141", "6204813aa0cccde69355b9af"]
 GOOD_CREATORS_BENEFIT = 3
 OPTION = "AVG"
-OWN_FEED = ["622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", "6237ee1b90f6cd0004dcec98"]
+OWN_FEED = ["622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", "6237ee1b90f6cd0004dcec98", 
+            "6238c16fc5bd0b000451d556", "62389aafc5bd0b000451d47e"]
 AFTER_ONBOARDING_FEED = ["61fb535c83126c67d6364225", "61f6d41b83126c67d6106601", "61fb535c83126c67d636434f", "62027961a0cccde693d8e22f",
                          "61f6bc1c83126c67d6fe55eb", "61eaf43b6ca5e8686eccaf6c", "61eaf43b6ca5e8686eccad0c", "61f939f283126c67d6bae621",
                          "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
                          "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a", "61ecc8216ca5e8686ed34c94",
                          "620da360882acdbef067ac0d", "622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", 
-                         "6237ee1b90f6cd0004dcec98"]
+                         "6237ee1b90f6cd0004dcec98", "622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860",
+                         "6238c16fc5bd0b000451d556", "62389aafc5bd0b000451d47e"]
 
 
 def get_user_x(user_id):
@@ -347,6 +350,9 @@ def get_feed(user_id):
 
     if is_new_user_bool:
         feed = first_time_feed + feed
+    
+    # Removed Julia's party audio
+    feed = [elem for elem in feed if elem["_id"] != ObjectId('62389aafc5bd0b000451d47e')]
 
     return feed
 
