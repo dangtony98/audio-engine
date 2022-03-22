@@ -29,7 +29,8 @@ PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 
             'languages', 'nature', 'history', 'religion', 'society', 'culture', 'education', 'science', 'career', 'business', 
             'tech', 'finance investing', 'politics', 'news']
 GOOD_CREATORS = ["61e7b9286600ea002ea8514d", "62365ca19a1d9536f8afb350", "61e5c362e63580002e097613", "61eb7d26870ee4000450292c", 
-                 "61fed4a140c09e0004d3c141", "6204813aa0cccde69355b9af"]
+                 "61fed4a140c09e0004d3c141", "6204813aa0cccde69355b9af", "6204813aa0cccde69355b9af", "6237b14631ff2267226355ad", 
+                 "620733c9a0cccde693696c18"]
 GOOD_CREATORS_BENEFIT = 3
 OPTION = "AVG"
 OWN_FEED = ["622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", "6237ee1b90f6cd0004dcec98", 
