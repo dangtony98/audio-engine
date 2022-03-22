@@ -348,9 +348,10 @@ def get_feed(user_id):
     # Sort data in the same order
     order_dict = {_id: index for index, _id in enumerate(sorted_scores_keys)}
     feed.sort(key=lambda x: order_dict[x["_id"]])
-
+    
     if is_new_user_bool:
-        feed = first_time_feed + feed
+        first_time_ids = [elem["_id"] for elem in first_time_feed]
+        feed = first_time_feed + [elem for elem in feed if elem["_id"] not in first_time_ids]
     
     # Removed Julia's party audio
     feed = [elem for elem in feed if elem["_id"] != ObjectId('62389aafc5bd0b000451d47e')]
