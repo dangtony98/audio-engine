@@ -5,7 +5,7 @@ import pickle
 import os 
 from ..utils import compute_age
 
-NUMBER_OF_CREATORS_TO_RECOMMEND = 20
+NUMBER_OF_CREATORS_TO_RECOMMEND = 40
 INVERSE_ORDER = -1
 OBJECT_ID_INDEX = 0
 PROB_INDEX = 1
