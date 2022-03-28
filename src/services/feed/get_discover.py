@@ -30,13 +30,14 @@ PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 
             'tech', 'finance investing', 'politics', 'news']
 GOOD_CREATORS = ["61e7b9286600ea002ea8514d", "62365ca19a1d9536f8afb350", "61e5c362e63580002e097613", "61eb7d26870ee4000450292c", 
                  "61fed4a140c09e0004d3c141", "6204813aa0cccde69355b9af", "6204813aa0cccde69355b9af", "6237b14631ff2267226355ad", 
-                 "620733c9a0cccde693696c18", "623e839297d010e000dac917", "623f4a8e630af2cc432a7b66"]
+                 "620733c9a0cccde693696c18", "623e839297d010e000dac917", "623f4a8e630af2cc432a7b66", "61f8a9eee8e4c100048e1a00",
+                 "6240e09903e30fc1e613cb1b"]
 GOOD_CREATORS_BENEFIT = 3
 OPTION = "AVG"
 OWN_FEED = ["622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", "6237ee1b90f6cd0004dcec98", 
             "6238c16fc5bd0b000451d556", "62389aafc5bd0b000451d47e", "623b1d3c26a984000403e880", "623a82254ed8033d5c31fa8b", 
             "623c668575cd1a00040c6e0c", "623fc53f351b080004a2c2c9", "623f6817351b080004a2c246", "623f64a1351b080004a2c1f0"]
-AFTER_ONBOARDING_FEED = ["61f6d41b83126c67d6106601", "61fb535c83126c67d636434f", "62027961a0cccde693d8e22f", "623b1d3c26a984000403e880",
+AFTER_ONBOARDING_FEED = ["61fb535c83126c67d636434f", "62027961a0cccde693d8e22f", "623b1d3c26a984000403e880",
                          "61eaf43b6ca5e8686eccaf6c", "623a82254ed8033d5c31fa8b", "623c668575cd1a00040c6e0c", "623f64a1351b080004a2c1f0",
                          "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
                          "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a",
