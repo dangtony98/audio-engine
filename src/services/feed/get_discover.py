@@ -32,7 +32,7 @@ GOOD_CREATORS = ["61e7b9286600ea002ea8514d", "62365ca19a1d9536f8afb350", "61e5c3
                  "61fed4a140c09e0004d3c141", "6204813aa0cccde69355b9af", "6204813aa0cccde69355b9af", "6237b14631ff2267226355ad", 
                  "620733c9a0cccde693696c18", "623e839297d010e000dac917", "623f4a8e630af2cc432a7b66", "61f8a9eee8e4c100048e1a00",
                  "6240e09903e30fc1e613cb1b"]
-GOOD_CREATORS_BENEFIT = 3
+GOOD_CREATORS_BENEFIT = 10
 OPTION = "AVG"
 OWN_FEED = ["622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", "6237ee1b90f6cd0004dcec98", 
             "6238c16fc5bd0b000451d556", "62389aafc5bd0b000451d47e", "623b1d3c26a984000403e880", "623a82254ed8033d5c31fa8b", 
@@ -153,6 +153,30 @@ def add_history_benefits(scores, user_id):
     audio_good_creators = [str(audio["_id"]) for audio in db.audios.find({"user": {"$in": [ObjectId(creator) for creator in GOOD_CREATORS]}}, {"_id": 1})]
     scores = {k: (v + (GOOD_CREATORS_BENEFIT if k in audio_good_creators else 0)) for k, v in scores.items()}
 
+    two_days_ago = datetime.now() - timedelta(days=2)
+    hot_feed = db.ratings.aggregate([
+        {
+            '$match': { 
+                'createdAt': {'$gte': two_days_ago},
+                'rating': {'$gte': 0.05}
+            }
+        }, 
+        { 
+            '$group': { 
+                '_id': "$audio", 
+                'rating': {'$sum': '$rating'}
+            }
+        }
+    ])
+    hot_feed = {str(audio["_id"]): audio["rating"] for audio in hot_feed}
+    # print(hot_feed)
+    rated_audios = [audio for audio in hot_feed.keys()]
+    # print(scores['62464cd5017b170004233a34'])
+    # print(scores)
+    scores = {k: (v + (hot_feed[k] if k in rated_audios else 0)) for k, v in scores.items()}
+    # print(scores['62464cd5017b170004233a34'])
+    # print(scores['6243c827f521b300045ef99a'])
+
     sorted_scores = {k: v + np.random.normal(RANDOM_MEAN, RANDOM_VARIANCE) for k, v in sorted(scores.items(), key=lambda item: -item[1])[:1000]}
  
     # Restricting the number of audios from the same creators on the feed
@@ -189,7 +213,7 @@ def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_sc
             r.hdel("user:" + user_id + ":scores", *seen_redis_scores.keys())
         if len(scores) >= 1000:
             scores_to_be_deleted = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[1000:])
-            r.hdel("user:" + user_id + ":scores", *scores_to_be_deleted.keys())
+            # r.hdel("user:" + user_id + ":scores", *scores_to_be_deleted.keys())
     except Exception as e:
         print(e)
     
@@ -356,7 +380,7 @@ def get_feed(user_id):
         feed = first_time_feed + [elem for elem in feed if elem["_id"] not in first_time_ids]
     
     # Removed Julia's party audio
-    feed = [elem for elem in feed if elem["_id"] != ObjectId('62389aafc5bd0b000451d47e')]
+    # feed = [elem for elem in feed if elem["_id"] != ObjectId('62389aafc5bd0b000451d47e')]
 
     return feed
 
