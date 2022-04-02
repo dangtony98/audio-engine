@@ -12,7 +12,7 @@ from ..utils import calculate_embedding
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 INVERSE_ORDER = -1
-ANNOYANCE_THRESHOLD = 2
+ANNOYANCE_THRESHOLD = 3
 TOP_FEED_THRESHOLD = 4
 LAST_FEED_THRESHOLD = 15
 REDIS_THRESHOLD = 1000 # How many items do we wanna save in redis
