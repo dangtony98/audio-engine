@@ -58,15 +58,35 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
     Returns a content pool of ids to consider and their repective embeddings
     """
     # get ids of seen ledges; omitting the ones that the user might still listen to
+    start_1 = time.time()
     listened_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id), "$or": [{"rating": {"$gte": 0.7}}, {"duration": {"$lte": 100}}]})]
+    stop_1 = time.time()
+    print("3.1", stop_1-start_1)
+    start_1 = stop_1
 
     # get ids of blocked users
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
+    stop_1 = time.time()
+    print("3.2", stop_1-start_1)
+    start_1 = stop_1
 
     # get ids of blocked content
     blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}}, {"_id": 1})]
+    stop_1 = time.time()
+    print("3.3", stop_1-start_1)
+    start_1 = stop_1
 
     redis_last_date = '2022-01-01 00:00:00.000+05:00' if redis_last_date == None else redis_last_date
+    stop_1 = time.time()
+    print("3.4", stop_1-start_1)
+    start_1 = stop_1
+    # Need to add in-house audios
+    # nonlistened_pool = list(
+    #     db.audios.find({"_id": {"$nin": list(set(listened_ids) | set(blocked_ids))}, 
+    #                     "isVisible": True, 
+    #                     "rss": {"$exists": 0}}, 
+    #     {"wordEmbedding": 1})
+    # )
     nonlistened_pool = list(
         db.audios.find({"_id": {"$nin": list(set(listened_ids) | set(blocked_ids) | set(redis_ids))}, 
                         "isVisible": True, 
@@ -74,15 +94,39 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
                         "updatedAt": {"$gte": datetime.fromisoformat(str(redis_last_date))}}, 
         {"wordEmbedding": 1})
     )
+    stop_1 = time.time()
+    print("3.5", stop_1-start_1)
+    start_1 = stop_1
     listened_ids = [str(id) for id in listened_ids]
+    stop_1 = time.time()
+    print("3.6", stop_1-start_1)
+    start_1 = stop_1
 
     # For people who have something in redis, make sure that we get rid of any deleted audios
     if redis_ids:
+        start_2 = time.time()
         found_pool = [elem["_id"] for elem in db.audios.find({"_id": {"$in": redis_ids}, "isVisible": True}, {"_id": 1})]
+        stop_2 = time.time()
+        print("3.7.1", stop_2-start_2)
+        start_2 = stop_2
+        print(len(redis_ids), len(found_pool))
         to_be_deleted_redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id not in found_pool]
+        print(len(to_be_deleted_redis_ids))
+        stop_2 = time.time()
+        print("3.7.2", stop_2-start_2)
+        start_2 = stop_2
         if len(to_be_deleted_redis_ids) != 0:
             r.hdel("user:" + user_id + ":scores", *to_be_deleted_redis_ids)
+        stop_2 = time.time()
+        print("3.7.3", stop_2-start_2)
+        start_2 = stop_2
         redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id in found_pool]
+        stop_2 = time.time()
+        print("3.7.4", stop_2-start_2)
+        start_2 = stop_2
+    stop_1 = time.time()
+    print("3.7", stop_1-start_1)
+    start_1 = stop_1
     return nonlistened_pool, listened_ids, redis_ids
 
 
@@ -323,32 +367,51 @@ def calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings)
     scores = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[:REDIS_THRESHOLD])
     return scores
 
-
+import time
 def get_feed(user_id):
     """
     gets the discovery feed for user with id [user_id]
     """
+    start = time.time()
     # Get user's pereferences
     user_preferences = get_user_preference_vector(user_id)
+    stop = time.time()
+    print("1", stop-start)
+    start = stop
 
     # Get the data cached in Redis; ids = ids of cached audios; scores = ids & scores
     redis_scores, redis_ids, redis_last_date = get_redis_scores(user_id)
+    stop = time.time()
+    print("2", stop-start)
+    start = stop
     
     # Query from DB everything besides the ids cached in Redis
     nonlistened_pool, listened_ids, redis_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids], redis_last_date)
+    stop = time.time()
+    print("3", stop-start)
+    start = stop
     
     # Make sure that we don't take into account the redis scores of audios that were for some reason deleted
     if len(redis_scores) != len(redis_ids):
         redis_scores = {key: value for key, value in redis_scores.items() if ObjectId(key) in redis_ids}
+    stop = time.time()
+    print("4", stop-start)
+    start = stop
 
     # Filter out the items that were previously seen too many times on the top of the feed - annoying
     annoying_audio_ids, last_feed = filter_annoying_audios(user_id)
+    stop = time.time()
+    print("5", stop-start)
+    start = stop
 
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
     nonlistened_redis_scores = {str(key): float(redis_scores[str(key)]) for key in redis_ids if (key not in listened_ids) and (key not in (annoying_audio_ids + last_feed))}
     listened_redis_scores = {key: float(redis_scores[str(key)]) for key in redis_ids if (key in listened_ids) or (key in annoying_audio_ids)}
     nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in nonlistened_pool if audio["_id"] not in annoying_audio_ids}
     mongo_scores = calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings)
+    stop = time.time()
+    print("6", stop-start)
+    start = stop
 
     is_new_user_bool = is_new_user(user_id)
     if is_new_user_bool:
@@ -361,23 +424,43 @@ def get_feed(user_id):
         order_dict = {_id: index for index, _id in enumerate(sorted_first_time_audios_scores_keys)}
         first_time_feed.sort(key=lambda x: order_dict[x["_id"]])
         first_time_feed = [elem for elem in first_time_feed if str(elem["_id"]) in OWN_FEED] + [elem for elem in first_time_feed if str(elem["_id"]) not in OWN_FEED]
+    stop = time.time()
+    print("7", stop-start)
+    start = stop
 
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)
+    stop = time.time()
+    print("8", stop-start)
+    start = stop
 
     # Rank audios and take the first 100
     sorted_scores_keys = get_sorted_content(mongo_scores, nonlistened_redis_scores, user_id, listened_redis_scores)
+    stop = time.time()
+    print("9", stop-start)
+    start = stop
 
     # Query the data for those 100 audios from Mongo
     feed = get_data(sorted_scores_keys)
+    stop = time.time()
+    print("10", stop-start)
+    start = stop
 
     # Sort data in the same order
     order_dict = {_id: index for index, _id in enumerate(sorted_scores_keys)}
     feed.sort(key=lambda x: order_dict[x["_id"]])
+    stop = time.time()
+    print("11", stop-start)
+    start = stop
     
     if is_new_user_bool:
         first_time_ids = [elem["_id"] for elem in first_time_feed]
         feed = first_time_feed + [elem for elem in feed if elem["_id"] not in first_time_ids]
+    stop = time.time()
+    print("12", stop-start)
+    start = stop
+
+    # print(feed)
     
     # Removed Julia's party audio
     # feed = [elem for elem in feed if elem["_id"] != ObjectId('62389aafc5bd0b000451d47e')]
