@@ -31,19 +31,13 @@ PREFERENCES = ['entertainment', 'comedy', 'daily life', 'storytelling', 'arts', 
 GOOD_CREATORS = ["61e7b9286600ea002ea8514d", "62365ca19a1d9536f8afb350", "61e5c362e63580002e097613", "61eb7d26870ee4000450292c", 
                  "61fed4a140c09e0004d3c141", "6204813aa0cccde69355b9af", "6204813aa0cccde69355b9af", "6237b14631ff2267226355ad", 
                  "620733c9a0cccde693696c18", "623e839297d010e000dac917", "623f4a8e630af2cc432a7b66", "61f8a9eee8e4c100048e1a00",
-                 "6240e09903e30fc1e613cb1b"]
+                 "6240e09903e30fc1e613cb1b", "623e503997d010e0005df2f6"]
 GOOD_CREATORS_BENEFIT = 10
 OPTION = "AVG"
 OWN_FEED = ["622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", "6237ee1b90f6cd0004dcec98", 
             "6238c16fc5bd0b000451d556", "62389aafc5bd0b000451d47e", "623b1d3c26a984000403e880", "623a82254ed8033d5c31fa8b", 
             "623c668575cd1a00040c6e0c", "623fc53f351b080004a2c2c9", "623f6817351b080004a2c246", "623f64a1351b080004a2c1f0"]
-AFTER_ONBOARDING_FEED = ["61fb535c83126c67d636434f", "62027961a0cccde693d8e22f", "623b1d3c26a984000403e880",
-                         "61eaf43b6ca5e8686eccaf6c", "623a82254ed8033d5c31fa8b", "623c668575cd1a00040c6e0c", "623f64a1351b080004a2c1f0",
-                         "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7", "61f34dc383126c67d64831c7",
-                         "61f34dc383126c67d64831c7", "61ff4b99a0cccde693236b62", "61ee260fa5c44dbeed3c6a7a",
-                         "620da360882acdbef067ac0d", "622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860", 
-                         "6237ee1b90f6cd0004dcec98", "622ac77943313100046821f8", "6236aedcf73c99000419aa2f", "62369b4098451b0004efb860",
-                         "6238c16fc5bd0b000451d556", "62389aafc5bd0b000451d47e", "623fc53f351b080004a2c2c9", "623f6817351b080004a2c246"]
+AFTER_ONBOARDING_FEED = ["625f3bcd832fbe00043b7788", "625df9273589fe00041aab20", "6254d298d1d8220004fe8314", "6254952ad1d8220004fe81ff", "624a5fa3a3088c0004787c26"]
 
 
 def get_user_x(user_id):
@@ -58,28 +52,15 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
     Returns a content pool of ids to consider and their repective embeddings
     """
     # get ids of seen ledges; omitting the ones that the user might still listen to
-    start_1 = time.time()
     listened_ids = [l["audio"] for l in db.ratings.find({"user": ObjectId(user_id), "$or": [{"rating": {"$gte": 0.7}}, {"duration": {"$lte": 100}}]})]
-    stop_1 = time.time()
-    print("3.1", stop_1-start_1)
-    start_1 = stop_1
 
     # get ids of blocked users
     blocked_users = [b["to"] for b in db.blocks.find({"from": ObjectId(user_id)})]
-    stop_1 = time.time()
-    print("3.2", stop_1-start_1)
-    start_1 = stop_1
 
     # get ids of blocked content
     blocked_ids = [a["_id"] for a in db.audios.find({"user": {"$in": blocked_users}}, {"_id": 1})]
-    stop_1 = time.time()
-    print("3.3", stop_1-start_1)
-    start_1 = stop_1
 
     redis_last_date = '2022-01-01 00:00:00.000+05:00' if redis_last_date == None else redis_last_date
-    stop_1 = time.time()
-    print("3.4", stop_1-start_1)
-    start_1 = stop_1
     # Need to add in-house audios
     # nonlistened_pool = list(
     #     db.audios.find({"_id": {"$nin": list(set(listened_ids) | set(blocked_ids))}, 
@@ -91,42 +72,20 @@ def get_content_pool(user_id, redis_ids, redis_last_date):
         db.audios.find({"_id": {"$nin": list(set(listened_ids) | set(blocked_ids) | set(redis_ids))}, 
                         "isVisible": True, 
                         "wordEmbedding": {"$exists": 1},
+                        "rss": {"$exists": 0},
                         "updatedAt": {"$gte": datetime.fromisoformat(str(redis_last_date))}}, 
         {"wordEmbedding": 1})
     )
-    stop_1 = time.time()
-    print("3.5", stop_1-start_1)
-    start_1 = stop_1
     listened_ids = [str(id) for id in listened_ids]
-    stop_1 = time.time()
-    print("3.6", stop_1-start_1)
-    start_1 = stop_1
+    
 
     # For people who have something in redis, make sure that we get rid of any deleted audios
     if redis_ids:
-        start_2 = time.time()
         found_pool = [elem["_id"] for elem in db.audios.find({"_id": {"$in": redis_ids}, "isVisible": True}, {"_id": 1})]
-        stop_2 = time.time()
-        print("3.7.1", stop_2-start_2)
-        start_2 = stop_2
-        print(len(redis_ids), len(found_pool))
         to_be_deleted_redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id not in found_pool]
-        print(len(to_be_deleted_redis_ids))
-        stop_2 = time.time()
-        print("3.7.2", stop_2-start_2)
-        start_2 = stop_2
         if len(to_be_deleted_redis_ids) != 0:
             r.hdel("user:" + user_id + ":scores", *to_be_deleted_redis_ids)
-        stop_2 = time.time()
-        print("3.7.3", stop_2-start_2)
-        start_2 = stop_2
         redis_ids = [str(redis_id) for redis_id in redis_ids if redis_id in found_pool]
-        stop_2 = time.time()
-        print("3.7.4", stop_2-start_2)
-        start_2 = stop_2
-    stop_1 = time.time()
-    print("3.7", stop_1-start_1)
-    start_1 = stop_1
     return nonlistened_pool, listened_ids, redis_ids
 
 
@@ -213,13 +172,8 @@ def add_history_benefits(scores, user_id):
         }
     ])
     hot_feed = {str(audio["_id"]): audio["rating"] for audio in hot_feed}
-    # print(hot_feed)
     rated_audios = [audio for audio in hot_feed.keys()]
-    # print(scores['62464cd5017b170004233a34'])
-    # print(scores)
     scores = {k: (v + (hot_feed[k] if k in rated_audios else 0)) for k, v in scores.items()}
-    # print(scores['62464cd5017b170004233a34'])
-    # print(scores['6243c827f521b300045ef99a'])
 
     sorted_scores = {k: v + np.random.normal(RANDOM_MEAN, RANDOM_VARIANCE) for k, v in sorted(scores.items(), key=lambda item: -item[1])[:1000]}
  
@@ -252,17 +206,28 @@ def get_sorted_content(mongo_scores, unseen_redis_scores, user_id, seen_redis_sc
     Delete listened/anniying ids from redis and anything that goes above 1000 audio ids
     """
     scores = dict(mongo_scores, **unseen_redis_scores)
-    try:
-        if len(seen_redis_scores) != 0:
-            r.hdel("user:" + user_id + ":scores", *seen_redis_scores.keys())
-        if len(scores) >= 1000:
-            scores_to_be_deleted = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[1000:])
-            # r.hdel("user:" + user_id + ":scores", *scores_to_be_deleted.keys())
-    except Exception as e:
-        print(e)
+    # try:
+    #     if len(seen_redis_scores) != 0:
+    #         r.hdel("user:" + user_id + ":scores", *seen_redis_scores.keys())
+    #     if len(scores) >= 1000:
+    #         scores_to_be_deleted = dict(sorted(scores.items(), key = itemgetter(1), reverse = True)[1000:])
+    #         # r.hdel("user:" + user_id + ":scores", *scores_to_be_deleted.keys())
+    # except Exception as e:
+    #     print(e)
     
     # This block of code actually benefits the audios from the account a  user is following
     sorted_scores_keys = add_history_benefits(scores, user_id)
+
+    listened_pool = list(
+        db.audios.find({"_id": {"$nin": sorted_scores_keys}, 
+                        "isVisible": True, 
+                        "wordEmbedding": {"$exists": 1},
+                        "rss": {"$exists": 0}}, 
+        {"_id": 1})
+    )
+    listened_pool = [elem["_id"] for elem in listened_pool]
+    sorted_scores_keys += listened_pool
+    print(len(sorted_scores_keys))
 
     return sorted_scores_keys
 
@@ -375,43 +340,26 @@ def get_feed(user_id):
     start = time.time()
     # Get user's pereferences
     user_preferences = get_user_preference_vector(user_id)
-    stop = time.time()
-    print("1", stop-start)
-    start = stop
 
     # Get the data cached in Redis; ids = ids of cached audios; scores = ids & scores
     redis_scores, redis_ids, redis_last_date = get_redis_scores(user_id)
-    stop = time.time()
-    print("2", stop-start)
-    start = stop
     
     # Query from DB everything besides the ids cached in Redis
     nonlistened_pool, listened_ids, redis_ids = get_content_pool(user_id, [ObjectId(id) for id in redis_ids], redis_last_date)
-    stop = time.time()
-    print("3", stop-start)
-    start = stop
-    
+
     # Make sure that we don't take into account the redis scores of audios that were for some reason deleted
     if len(redis_scores) != len(redis_ids):
         redis_scores = {key: value for key, value in redis_scores.items() if ObjectId(key) in redis_ids}
-    stop = time.time()
-    print("4", stop-start)
-    start = stop
 
     # Filter out the items that were previously seen too many times on the top of the feed - annoying
-    annoying_audio_ids, last_feed = filter_annoying_audios(user_id)
-    stop = time.time()
-    print("5", stop-start)
-    start = stop
+    # annoying_audio_ids, last_feed = filter_annoying_audios(user_id)
+    annoying_audio_ids, last_feed = [], []
 
     # Filter only unseen scores from redis; and unseen word Embedidngs from mongo; calculate scores for mongo audios
     nonlistened_redis_scores = {str(key): float(redis_scores[str(key)]) for key in redis_ids if (key not in listened_ids) and (key not in (annoying_audio_ids + last_feed))}
     listened_redis_scores = {key: float(redis_scores[str(key)]) for key in redis_ids if (key in listened_ids) or (key in annoying_audio_ids)}
     nonlistened_audios_embeddings = {audio["_id"]: audio["wordEmbedding"] for audio in nonlistened_pool if audio["_id"] not in annoying_audio_ids}
     mongo_scores = calculate_scores_for_audios(user_preferences, nonlistened_audios_embeddings)
-    stop = time.time()
-    print("6", stop-start)
-    start = stop
 
     is_new_user_bool = is_new_user(user_id)
     if is_new_user_bool:
@@ -424,41 +372,25 @@ def get_feed(user_id):
         order_dict = {_id: index for index, _id in enumerate(sorted_first_time_audios_scores_keys)}
         first_time_feed.sort(key=lambda x: order_dict[x["_id"]])
         first_time_feed = [elem for elem in first_time_feed if str(elem["_id"]) in OWN_FEED] + [elem for elem in first_time_feed if str(elem["_id"]) not in OWN_FEED]
-    stop = time.time()
-    print("7", stop-start)
-    start = stop
 
     # Send the new scores to redis
     send_to_redis(user_id, mongo_scores)
-    stop = time.time()
-    print("8", stop-start)
-    start = stop
 
     # Rank audios and take the first 100
     sorted_scores_keys = get_sorted_content(mongo_scores, nonlistened_redis_scores, user_id, listened_redis_scores)
-    stop = time.time()
-    print("9", stop-start)
-    start = stop
 
+    print(1)
     # Query the data for those 100 audios from Mongo
     feed = get_data(sorted_scores_keys)
-    stop = time.time()
-    print("10", stop-start)
-    start = stop
-
     # Sort data in the same order
     order_dict = {_id: index for index, _id in enumerate(sorted_scores_keys)}
     feed.sort(key=lambda x: order_dict[x["_id"]])
-    stop = time.time()
-    print("11", stop-start)
-    start = stop
     
     if is_new_user_bool:
         first_time_ids = [elem["_id"] for elem in first_time_feed]
         feed = first_time_feed + [elem for elem in feed if elem["_id"] not in first_time_ids]
     stop = time.time()
-    print("12", stop-start)
-    start = stop
+    print(stop-start)
 
     # print(feed)
     

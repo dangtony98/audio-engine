@@ -101,10 +101,11 @@ def get_prof_recs(user_id):
 
     creator_recs = [
         {'_id': '62365ca19a1d9536f8afb350', 'avatar': '62365cf89a1d9536f8b06dc1', 'bio': '', 'firstName': 'Clare', 'lastName': 'Dot', 'username': 'clare'},
-        {'_id': '6204813aa0cccde69355b9af', 'avatar': '6204820ba0cccde693561eda', 'bio': 'reactions & advice', 'firstName': 'Julia', 'lastName': '🤠', 'username': 'julia'},
+        {'_id': '623e839297d010e000dac917', 'avatar': '623e840197d010e000dbed88', 'bio': 'Cornell Hotelie | World Traveler | Storyteller \
+            Intentional Living, International Travel, Interwoven Stories | 📍 LA', 'firstName': 'Alexa', 'lastName': 'Torres', 'username': 'alexamarilyn13'},
         {'_id': '61eb7d26870ee4000450292c', 'username': 'tony', 'avatar': '61eb7d446ca5e8686e1e1e8d', 'firstName': 'Tony', 'lastName': 'Dang', 'bio': 'Co-founder @Auledge \nHotel + CS @Cornell 📚'},
         {'_id': '61e5c362e63580002e097613', 'username': 'vmatsiiako', 'avatar': '61e5c3dd6ca5e8686e0be9f0', 'firstName': 'Vlad', 'lastName': 'Matsiiako', 'bio': 'Co-founder of Auledge\nCornell Tech ORIE ‘22'},
-        {'_id': '6237b14631ff2267226355ad', 'avatar': '6237b19731ff22672263ed39', 'bio': 'welcome to my thots.', 'firstName': 'Jesse', 'lastName': 'Zhu', 'username': 'jessesthots'},
+        {'_id': '623e503997d010e0005df2f6', 'avatar': '623e50b897d010e0005f3cd0', 'bio': 'me hoy minoy', 'firstName': 'Mauri', 'lastName': 'Jackson', 'username': 'mauri'},
         # {'_id': '6240e09903e30fc1e613cb1b', 'avatar': '6240e15f03e30fc1e615892e', 'bio': '', 'firstName': 'Toby', 'lastName': 'Leung', 'username': 'tobyah'}
     ]
     print(creator_recs)
